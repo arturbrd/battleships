@@ -47,26 +47,29 @@ impl <'a> OwnBoard<'a> {
     }
     // method used by place_ships to place one ship
     fn place_ship(&mut self, ship: &'a Ship) -> Result<(), PlacingShipsError> {
-        cli::clear();
+        print!("\x1B[2J\x1B[1;1H");
         loop {
             println!("{}", self);
             println!("Place your {} ({} tiles long) - enter tiles coordinates like this >>a1-a3<<:", ship, ship.size);
             let mut buf = String::new();
             if let Err(e) = stdin().read_line(&mut buf) {
-                println!("Couldn't read form stdin! - {} - Trying again...", e);
+                print!("\x1B[2J\x1B[1;1H");
+                println!("Couldn't read form stdin! - {} - Trying again...\n", e);
                 continue;
             }
             let coordinates = Self::decode_ship_placing_input(buf.trim(), ship);
             match coordinates {
                 Ok(coordinates) => {
                     if let Err(e) = self.place_on_tiles(&coordinates, ship) {
-                        println!("{} - trying again", e);
+                        print!("\x1B[2J\x1B[1;1H");
+                        println!("{} - trying again...\n", e);
                         continue;
                     }
                     break;
                 },
                 Err(e) => {
-                    println!("Couldn't convert to coordinates! - {} - Trying again...", e);
+                    print!("\x1B[2J\x1B[1;1H");
+                    println!("Couldn't convert to coordinates! - {} - Trying again...\n", e);
                     continue;
                 }
             }
