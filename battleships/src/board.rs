@@ -1,46 +1,102 @@
 use std::{fmt::Display, io::stdin};
 
+#[derive(Debug, Clone)]
 struct PlacingShipsError;
-struct UserInputError;
 
+#[derive(Debug, Clone)]
+struct UserInputError {
+    msg: &'static str
+}
+impl Display for UserInputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UserInputError: {}", self.msg)
+    }
+}
+
+const COORDINATES_LETTERS: &str = "abcdefghij";
+
+// player's board with their ships
 struct OwnBoard<'a> {
     board: [[OwnTile<'a>; 10]; 10],
     ships_placed: bool
 }
 impl <'a> OwnBoard<'a> {
+    // create new instance
     fn new() -> OwnBoard<'a> {
         OwnBoard {
             board: [[OwnTile::new(); 10]; 10],
             ships_placed: false
         }
     }
+    // prompt user to place their ships
     fn place_ships(&mut self, ships: &Vec<Ship>) -> Result<(), PlacingShipsError> {
         if self.ships_placed {
             return Err(PlacingShipsError);
         };
         for ship in ships {
+            println!("halo");
             self.place_ship(ship)?
         }
         Ok(())
     }
+    // method used by place_ships to place one ship
     fn place_ship(&mut self, ship: &Ship) -> Result<(), PlacingShipsError> {
         loop {
             println!("Place your {} ({} tiles long) - enter tiles coordinates like this >>a1-a3<<:", ship, ship.size);
             let mut buf = String::new();
             if let Err(e) = stdin().read_line(&mut buf) {
-                println!("Couldn't read form stdin! Trying again...");
+                println!("Couldn't read form stdin! - {} - Trying again...", e);
                 continue;
             }
-
+            let coordinates = Self::decode_ship_placing_input(buf.trim(), ship);
+            println!("{:#?}", coordinates);
+            break;
         }
-    }
-    fn decode_ship_placing_input(input: &String) -> Result<(), UserInputError> {
-        if input.len() != 5 {
-            return Err(UserInputError);
-        }
-        let chars: Vec<_> = input.chars().collect();
-        // TODO
         Ok(())
+    }
+    // method decoding user's ship placing input
+    fn decode_ship_placing_input(input: &str, ship: &Ship) -> Result<Vec<[usize; 2]>, UserInputError> {
+        if !input.contains('-') {
+            return Err(UserInputError {msg: "Missing hyphen"});
+        }
+        let fields = input.split('-');
+        let mut decoded_indexes = Vec::new();
+        for field in fields {
+            let chars = field.chars().collect::<Vec<_>>();
+            if (chars.len() == 3 || chars.len() == 2) && COORDINATES_LETTERS.contains(chars[0]) && chars[1].is_ascii_digit() {
+                if chars.len() == 3 && !chars[2].is_ascii_digit() {
+                    println!("{:#?}", chars);
+                    return Err(UserInputError {msg: "Wrong format"});
+                }
+                let (i, j) = chars.split_at(1);
+                let i = COORDINATES_LETTERS.find(i).ok_or(UserInputError {msg: "Such letters are not allowed in coordinates"})?;
+                let j: usize = j.iter().collect::<String>().parse().map_err(|_| UserInputError {msg: "Cannot convert to a number"})?;
+                decoded_indexes.push([i,j]);
+            } else {
+                return Err(UserInputError {msg: "Wrong format"});
+            }
+        }
+        let (changing_coord, unchanging_coord): (usize, usize) = if decoded_indexes[0][0] == decoded_indexes[1][0] {
+            (1, 0)
+        } else if decoded_indexes[0][1] == decoded_indexes[1][1] {
+            (0, 1)
+        } else {
+            return Err(UserInputError {msg: "Coordinates are not in line"});
+        };
+        let (greater, lesser) = if decoded_indexes[0][changing_coord] >= decoded_indexes[1][changing_coord] {
+            (decoded_indexes[0][changing_coord], decoded_indexes[1][changing_coord])
+        } else {
+            (decoded_indexes[1][changing_coord], decoded_indexes[0][changing_coord])
+        };
+        if greater - lesser == ship.size as usize - 1 {
+            for i in 1..ship.size-1 {
+                decoded_indexes.insert(i as usize, [decoded_indexes[0][unchanging_coord], lesser + i as usize])
+            }
+        } else {
+            return Err(UserInputError {msg: "This range is either too long or too short for this ship"})
+        }
+       
+        Ok(decoded_indexes)
     }
 }
 
@@ -75,6 +131,7 @@ impl Ship {
         let name = Ship::get_ship_name(&ship_type);
         Ship { ship_type, size, name, destroyed: false }
     }
+
     fn get_ship_size(ship_type: &ShipType) -> u8 {
         const CARRIER_SIZE: u8 = 5;
         const BATTLESHIP_SIZE: u8 = 4;
@@ -90,7 +147,8 @@ impl Ship {
             ShipType::Destroyer => DESTROYER_SIZE
         }
     }
-    fn get_ship_name(ship_type: &ShipType) -> &str {
+
+    fn get_ship_name(ship_type: &ShipType) -> &'static str {
         const CARRIER_NAME: &str = "carrier";
         const BATTLESHIP_NAME: &str = "battleship";
         const CRUISER_NAME: &str = "cruiser";
@@ -113,3 +171,16 @@ impl Display for Ship {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_placing() {
+        let mut my_board = OwnBoard::new();
+        let ship = Ship::new(ShipType::Carrier);
+        let mut ships = Vec::new();
+        ships.push(ship);
+        println!("{:?}", my_board.place_ships(&ships).expect("place ships nie działa"));
+    }
+}
