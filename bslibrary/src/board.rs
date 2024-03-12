@@ -1,7 +1,14 @@
 use std::{fmt::Display, io::stdin};
 
 #[derive(Debug, Clone)]
-struct PlacingShipsError;
+struct PlacingShipsError {
+    msg: &'static str
+}
+impl Display for PlacingShipsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PlacingShipsError: {}", self.msg)
+    }
+}
 
 #[derive(Debug, Clone)]
 struct UserInputError {
@@ -29,19 +36,20 @@ impl <'a> OwnBoard<'a> {
         }
     }
     // prompt user to place their ships
-    fn place_ships(&mut self, ships: &Vec<Ship>) -> Result<(), PlacingShipsError> {
+    fn place_ships(&mut self, ships: &'a Vec<Ship>) -> Result<(), PlacingShipsError> {
         if self.ships_placed {
-            return Err(PlacingShipsError);
+            return Err(PlacingShipsError {msg: "Ships were already placed"});
         };
         for ship in ships {
-            println!("halo");
             self.place_ship(ship)?
         }
         Ok(())
     }
     // method used by place_ships to place one ship
-    fn place_ship(&mut self, ship: &Ship) -> Result<(), PlacingShipsError> {
+    fn place_ship(&mut self, ship: &'a Ship) -> Result<(), PlacingShipsError> {
+        cli::clear();
         loop {
+            println!("{}", self);
             println!("Place your {} ({} tiles long) - enter tiles coordinates like this >>a1-a3<<:", ship, ship.size);
             let mut buf = String::new();
             if let Err(e) = stdin().read_line(&mut buf) {
@@ -49,8 +57,19 @@ impl <'a> OwnBoard<'a> {
                 continue;
             }
             let coordinates = Self::decode_ship_placing_input(buf.trim(), ship);
-            println!("{:#?}", coordinates);
-            break;
+            match coordinates {
+                Ok(coordinates) => {
+                    if let Err(e) = self.place_on_tiles(&coordinates, ship) {
+                        println!("{} - trying again", e);
+                        continue;
+                    }
+                    break;
+                },
+                Err(e) => {
+                    println!("Couldn't convert to coordinates! - {} - Trying again...", e);
+                    continue;
+                }
+            }
         }
         Ok(())
     }
@@ -71,7 +90,7 @@ impl <'a> OwnBoard<'a> {
                 let (i, j) = chars.split_at(1);
                 let i = COORDINATES_LETTERS.find(i).ok_or(UserInputError {msg: "Such letters are not allowed in coordinates"})?;
                 let j: usize = j.iter().collect::<String>().parse().map_err(|_| UserInputError {msg: "Cannot convert to a number"})?;
-                decoded_indexes.push([i,j]);
+                decoded_indexes.push([i,j-1]);
             } else {
                 return Err(UserInputError {msg: "Wrong format"});
             }
@@ -90,13 +109,43 @@ impl <'a> OwnBoard<'a> {
         };
         if greater - lesser == ship.size as usize - 1 {
             for i in 1..ship.size-1 {
-                decoded_indexes.insert(i as usize, [decoded_indexes[0][unchanging_coord], lesser + i as usize])
+                if unchanging_coord == 0 {
+                    decoded_indexes.insert(i as usize, [decoded_indexes[0][unchanging_coord], lesser + i as usize])
+                } else {
+                    decoded_indexes.insert(i as usize, [lesser + i as usize, decoded_indexes[0][unchanging_coord]])
+                }
             }
         } else {
             return Err(UserInputError {msg: "This range is either too long or too short for this ship"})
         }
-       
         Ok(decoded_indexes)
+    }
+
+    fn place_on_tiles(&mut self, coordinates: &Vec<[usize; 2]>, ship: &'a Ship) -> Result<(), PlacingShipsError> {
+        for [i, j] in coordinates {
+            if self.board[*i][*j].ship.is_some() {
+                return Err(PlacingShipsError {msg: "Tile is not empty"});
+            }
+        }
+        for [i, j] in coordinates {
+            self.board[*i][*j].ship = Some(ship);
+        }
+        Ok(())
+    }
+}
+impl Display for OwnBoard<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = String::from("  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10|\n-------------------------------------------\n");
+        let chars = COORDINATES_LETTERS.chars().collect::<Vec<_>>();
+        for (i, row) in self.board.iter().enumerate() {
+            string += chars[i].to_string().as_str();
+            string += " |";
+            for tile in row {
+                string += format!("{}|", tile).as_str();
+            }
+            string += "\n-------------------------------------------\n";
+        }
+        write!(f, "{}", string)
     }
 }
 
@@ -110,7 +159,26 @@ impl <'a> OwnTile<'a> {
         OwnTile { shot: false, ship: None }
     }
 }
+impl Display for OwnTile<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.shot {
+            true => {
+                match self.ship {
+                    None => write!(f, " * "),
+                    Some(_) => write!(f, " X ")
+                }
+            },
+            false => {
+                match self.ship {
+                    None => write!(f, "   "),
+                    Some(_) => write!(f, " @ ")
+                }
+            }
+        }
+    }
+}
 
+#[derive(PartialEq, Eq)]
 enum ShipType {
     Carrier,
     Battleship,
@@ -119,6 +187,7 @@ enum ShipType {
     Destroyer
 }
 
+#[derive(PartialEq, Eq)]
 struct Ship {
     ship_type: ShipType,
     size: u8,
@@ -178,9 +247,13 @@ mod tests {
     #[test]
     fn test_placing() {
         let mut my_board = OwnBoard::new();
-        let ship = Ship::new(ShipType::Carrier);
-        let mut ships = Vec::new();
-        ships.push(ship);
+        let battleship = Ship::new(ShipType::Battleship);
+        let carrier = Ship::new(ShipType::Carrier);
+        let submarine = Ship::new(ShipType::Submarine);
+        let destroyer = Ship::new(ShipType::Destroyer);
+        let cruiser = Ship::new(ShipType::Cruiser);
+        let ships = vec![carrier, battleship, cruiser, submarine, destroyer];
         println!("{:?}", my_board.place_ships(&ships).expect("place ships nie działa"));
+        println!("{}", my_board);
     }
 }
