@@ -129,6 +129,19 @@ impl <'a> OwnBoard<'a> {
             if self.board[*i][*j].ship.is_some() {
                 return Err(PlacingShipsError {msg: "Tile is not empty"});
             }
+
+            let top = if *i > 0 {i-1} else {0};
+            let down = if *i < 9 {i+1} else {9};
+            let left = if *j > 0 {j-1} else {0};
+            let right = if *j < 9 {j+1} else {9};
+            
+            for k in top..down+1 {
+                for l in left..right+1 {
+                    if self.board[k][l].ship.is_some() {
+                        return Err(PlacingShipsError {msg: "The tile is next to another ship"});
+                    }
+                }
+            }
         }
         for [i, j] in coordinates {
             self.board[*i][*j].ship = Some(ship);
