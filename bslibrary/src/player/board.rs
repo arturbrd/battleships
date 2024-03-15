@@ -1,7 +1,7 @@
 use std::{fmt::Display, io::stdin};
 
 #[derive(Debug, Clone)]
-struct PlacingShipsError {
+pub struct PlacingShipsError {
     msg: &'static str
 }
 impl Display for PlacingShipsError {
@@ -23,30 +23,34 @@ impl Display for UserInputError {
 const COORDINATES_LETTERS: &str = "abcdefghij";
 
 // player's board with their ships
-struct OwnBoard<'a> {
+pub struct OwnBoard<'a> {
     board: [[OwnTile<'a>; 10]; 10],
     ships_placed: bool
 }
 impl <'a> OwnBoard<'a> {
     // create new instance
-    fn new() -> OwnBoard<'a> {
+    pub fn new() -> OwnBoard<'a> {
         OwnBoard {
             board: [[OwnTile::new(); 10]; 10],
             ships_placed: false
         }
     }
     // prompt user to place their ships
-    fn place_ships(&mut self, ships: &'a Vec<Ship>) -> Result<(), PlacingShipsError> {
+    pub fn place_ships(&mut self, ships: &'a Vec<Ship>) -> Result<(), PlacingShipsError> {
         if self.ships_placed {
             return Err(PlacingShipsError {msg: "Ships were already placed"});
         };
         for ship in ships {
             self.place_ship(ship)?
         }
+        self.ships_placed = true;
         Ok(())
     }
     // method used by place_ships to place one ship
     fn place_ship(&mut self, ship: &'a Ship) -> Result<(), PlacingShipsError> {
+        if self.ships_placed {
+            return Err(PlacingShipsError {msg: "Ships have been already placed"});
+        }
         print!("\x1B[2J\x1B[1;1H");
         loop {
             println!("{}", self);
@@ -134,7 +138,7 @@ impl <'a> OwnBoard<'a> {
             let down = if *i < 9 {i+1} else {9};
             let left = if *j > 0 {j-1} else {0};
             let right = if *j < 9 {j+1} else {9};
-            
+
             for k in top..down+1 {
                 for l in left..right+1 {
                     if self.board[k][l].ship.is_some() {
@@ -195,7 +199,7 @@ impl Display for OwnTile<'_> {
 }
 
 #[derive(PartialEq, Eq)]
-enum ShipType {
+pub enum ShipType {
     Carrier,
     Battleship,
     Cruiser,
@@ -204,14 +208,14 @@ enum ShipType {
 }
 
 #[derive(PartialEq, Eq)]
-struct Ship {
+pub struct Ship {
     ship_type: ShipType,
     size: u8,
     name: &'static str,
     destroyed: bool
 }
 impl Ship {
-    fn new(ship_type: ShipType) -> Ship {
+    pub fn new(ship_type: ShipType) -> Ship {
         let size = Ship::get_ship_size(&ship_type);
         let name = Ship::get_ship_name(&ship_type);
         Ship { ship_type, size, name, destroyed: false }
