@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use config::{Config, Environment};
 use serde::{Serialize, Deserialize};
-use std::io::BufReader;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
 
@@ -25,7 +25,7 @@ async fn main() {
     let listener = TcpListener::bind(config.server_addr).await.expect("failed to create a listener");
 
     loop {
-        let (stream, addr) = listener.accept().await.expect("failed to establish a connection");
+        let (stream, _) = listener.accept().await.expect("failed to establish a connection");
 
         tokio::spawn(async move {
             handle_connection(stream).await;
@@ -33,6 +33,7 @@ async fn main() {
     }
 }
 
-async fn handle_connection(stream: TcpStream) {
+async fn handle_connection(mut stream: TcpStream) {
     let buffer = BufReader::new(&mut stream);
+    let lines = buffer.lines();
 }
