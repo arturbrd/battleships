@@ -1,17 +1,19 @@
 use dotenv::dotenv;
 use config::{Config, Environment};
 use serde::{Serialize, Deserialize};
-use actix_web::{App, HttpServer};
+use std::io::BufReader;
+use tokio::net::{TcpListener, TcpStream};
 
-mod handlers;
+
+// mod handlers;
 
 #[derive(Serialize, Deserialize)]
 pub struct ServerConfig {
     pub server_addr: String
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() {
     dotenv().ok();
     let config = Config::builder()
         .add_source(Environment::default().separator("__"))
@@ -20,12 +22,17 @@ async fn main() -> std::io::Result<()> {
 
     let config: ServerConfig = config.try_deserialize().unwrap();
 
-    HttpServer::new(move || {
-            App::new()
-                .service(handlers::test)
-        })
-        .workers(12)
-        .bind(config.server_addr)?
-        .run()
-        .await
+    let listener = TcpListener::bind(config.server_addr).await.expect("failed to create a listener");
+
+    loop {
+        let (stream, addr) = listener.accept().await.expect("failed to establish a connection");
+
+        tokio::spawn(async move {
+            handle_connection(stream).await;
+        });
+    }
+}
+
+async fn handle_connection(stream: TcpStream) {
+    let buffer = BufReader::new(&mut stream);
 }
