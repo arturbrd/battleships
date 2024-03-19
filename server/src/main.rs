@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use config::{Config, Environment};
 use serde::{Serialize, Deserialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
 
@@ -34,6 +34,7 @@ async fn main() {
 }
 
 async fn handle_connection(mut stream: TcpStream) {
-    let buffer = BufReader::new(&mut stream);
-    let lines = buffer.lines();
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).await.unwrap();
+    println!("{}", String::from_utf8(buf).unwrap());
 }
