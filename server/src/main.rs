@@ -34,7 +34,8 @@ async fn main() {
 }
 
 async fn handle_connection(mut stream: TcpStream) {
-    let mut buf = Vec::new();
-    stream.read_to_end(&mut buf).await.unwrap();
-    println!("{}", String::from_utf8(buf).unwrap());
+    println!("Handling connection");
+    let mut buf = String::new();
+    stream.read_to_string(&mut buf).await.unwrap();
+    println!("{}", buf);
 }

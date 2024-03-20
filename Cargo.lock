@@ -50,10 +50,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
-name = "battleships"
-version = "0.1.0"
-
-[[package]]
 name = "bitflags"
 version = "2.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -70,6 +66,10 @@ checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
 ]
+
+[[package]]
+name = "bslib"
+version = "0.1.0"
 
 [[package]]
 name = "bytes"
@@ -92,6 +92,10 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "client"
 version = "0.1.0"
+dependencies = [
+ "bslib",
+ "serde",
+]
 
 [[package]]
 name = "config"
