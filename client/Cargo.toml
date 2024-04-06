@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0.197", features = ["derive"] }
 bslib = { path = "../bslib" }
+tokio = { version = "1.36.0", features = ["rt", "rt-multi-thread", "io-util", "net", "macros"] }
+

@@ -88,19 +88,8 @@ impl <'a> OwnBoard<'a> {
         let fields = input.split('-');
         let mut decoded_indexes = Vec::new();
         for field in fields {
-            let chars = field.chars().collect::<Vec<_>>();
-            if (chars.len() == 3 || chars.len() == 2) && COORDINATES_LETTERS.contains(chars[0]) && chars[1].is_ascii_digit() {
-                if chars.len() == 3 && !chars[2].is_ascii_digit() {
-                    println!("{:#?}", chars);
-                    return Err(UserInputError {msg: "Wrong format"});
-                }
-                let (i, j) = chars.split_at(1);
-                let i = COORDINATES_LETTERS.find(i).ok_or(UserInputError {msg: "Such letters are not allowed in coordinates"})?;
-                let j: usize = j.iter().collect::<String>().parse().map_err(|_| UserInputError {msg: "Cannot convert to a number"})?;
-                decoded_indexes.push([i,j-1]);
-            } else {
-                return Err(UserInputError {msg: "Wrong format"});
-            }
+            decoded_indexes.push(Self::decode_indexes(field)?)
+            
         }
         let (changing_coord, unchanging_coord): (usize, usize) = if decoded_indexes[0][0] == decoded_indexes[1][0] {
             (1, 0)
@@ -126,6 +115,22 @@ impl <'a> OwnBoard<'a> {
             return Err(UserInputError {msg: "This range is either too long or too short for this ship"})
         }
         Ok(decoded_indexes)
+    }
+
+    fn decode_indexes(indexes: &str) -> Result<[usize; 2], UserInputError> {
+        let chars = indexes.chars().collect::<Vec<_>>();
+            if (chars.len() == 3 || chars.len() == 2) && COORDINATES_LETTERS.contains(chars[0]) && chars[1].is_ascii_digit() {
+                if chars.len() == 3 && !chars[2].is_ascii_digit() {
+                    println!("{:#?}", chars);
+                    return Err(UserInputError {msg: "Wrong format"});
+                }
+                let (i, j) = chars.split_at(1);
+                let i = COORDINATES_LETTERS.find(i).ok_or(UserInputError {msg: "Such letters are not allowed in coordinates"})?;
+                let j: usize = j.iter().collect::<String>().parse().map_err(|_| UserInputError {msg: "Cannot convert to a number"})?;
+                Ok([i,j-1])
+            } else {
+                Err(UserInputError {msg: "Wrong format"})
+            }
     }
 
     fn place_on_tiles(&mut self, coordinates: &Vec<[usize; 2]>, ship: &'a Ship) -> Result<(), PlacingShipsError> {

@@ -1,18 +1,21 @@
 use std::io::prelude::*;
-use std::net::TcpStream;
+use tokio::net::TcpStream;
 use std::thread;
 use std::time::Duration;
 use bslib::player::Player;
 
-fn main() {
-    let mut stream = TcpStream::connect("127.0.0.1:8000").unwrap();
-    let sample = "#battleships\ntest\n".as_bytes();
-    stream.write_all(sample).unwrap();
-    thread::sleep(Duration::from_millis(1000));
+#[tokio::main]
+async fn main() {
+    let mut stream = TcpStream::connect("127.0.0.1:8000").await.unwrap();
+    // let sample = "#battleships\ntest\n".as_bytes();
+    // stream.write_all(sample).unwrap();
+    // thread::sleep(Duration::from_millis(1000));
     println!("Hello, world!");
-    stream.write_all(sample).unwrap();
+    // stream.write_all(sample).unwrap();
+    // stream.shutdown(std::net::Shutdown::Both).unwrap();
 
     let mut player = Player::new();
+    player.connect(&mut stream).await.expect("failed to connect to a game");
     player.set_up().expect("failed to set up a board");
 
     // let mut my_board = OwnBoard::new();
