@@ -1,7 +1,4 @@
-use std::io::prelude::*;
 use tokio::net::TcpStream;
-use std::thread;
-use std::time::Duration;
 use bslib::player::Player;
 
 #[tokio::main]

@@ -3,7 +3,7 @@ mod board;
 use board::{Ship, ShipType, OwnBoard, PlacingShipsError};
 use core::fmt::Display;
 use tokio::net::TcpStream;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug, Clone)]
 pub struct ConnectionError {
@@ -11,7 +11,7 @@ pub struct ConnectionError {
 }
 impl Display for ConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PlacingShipsError: {}", self.msg)
+        write!(f, "ConnectionError: {}", self.msg)
     }
 }
 

@@ -1,20 +1,28 @@
 use core::fmt::Display;
+use tokio::io;
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
 
-use tokio::{io::AsyncWriteExt, net::TcpStream};
+pub trait HandlersModError: std::error::Error {}
 
 #[derive(Debug, Clone)]
 pub struct ConnectError {
-    msg: &'static str
+    msg: String
 }
 impl Display for ConnectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PlacingShipsError: {}", self.msg)
+        write!(f, "ConnectError: {}", self.msg)
+    }
+}
+impl std::error::Error for ConnectError {}
+impl HandlersModError for ConnectError {}
+impl From<io::Error> for ConnectError {
+    fn from(value: io::Error) -> Self {
+        Self { msg: format!("{value:}")}
     }
 }
 
 pub async fn handle_connect_cmd(stream: &mut TcpStream) -> Result<(), ConnectError> {
-    if stream.write_all("#battleship connect_ack".as_bytes()).await.is_err() {
-        return Err(ConnectError { msg: "failed to connect a player to a game"});
-    }
+    stream.write_all("#battleship connect_ack".as_bytes()).await?;
     Ok(())
 }

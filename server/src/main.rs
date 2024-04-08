@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use config::{Config, Environment};
 use serde::{Serialize, Deserialize};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, self};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, self};
 use tokio::net::{TcpListener, TcpStream};
 use core::fmt::Display;
 
@@ -15,13 +15,24 @@ pub struct ServerConfig {
 
 #[derive(Debug, Clone)]
 pub struct HandlingError {
-    msg: &'static str
+    msg: String
 }
 impl Display for HandlingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PlacingShipsError: {}", self.msg)
+        write!(f, "HandlingError: {}", self.msg)
     }
 }
+impl<E: handlers::HandlersModError> From<E> for HandlingError {
+    fn from(value: E) -> Self {
+        Self { msg: format!("{value:}")}
+    }
+}
+impl From<io::Error> for HandlingError {
+    fn from(value: io::Error) -> Self {
+        Self { msg: format!("{value:}")}
+    }
+}
+impl std::error::Error for HandlingError {}
 
 #[tokio::main]
 async fn main() {
@@ -55,20 +66,14 @@ async fn handle_connection(mut stream: TcpStream) -> Result<(), HandlingError> {
     println!("{}", buf);
     let (header, cmd) = buf.split_once(' ').unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
     if header != "#battleships" {
-        if stream.write_all("#battleships connect_rej".as_bytes()).await.is_err() {
-            return Err(HandlingError { msg: "IO error"});
-        } else {
-            return Err(HandlingError { msg: "wrong header"});
-        }
+        stream.write_all("#battleships connect_rej".as_bytes()).await?;
+        return Err(HandlingError { msg: "wrong header".to_owned()});
     }
     match cmd {
         "connect" => {
-            if handlers::handle_connect_cmd(&mut stream).await.is_err() {
-                Err(HandlingError { msg: "connect_cmd failed" })
-            } else {
+                handlers::handle_connect_cmd(&mut stream).await?;
                 Ok(())
             }
-        }
-        _ => Err(HandlingError { msg: "no such command"})
+        _ => Err(HandlingError { msg: "no such command".to_owned()})
     }
 }
