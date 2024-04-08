@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use config::{Config, Environment};
 use serde::{Serialize, Deserialize};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, self};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, self};
 use tokio::net::{TcpListener, TcpStream};
 use core::fmt::Display;
 
@@ -62,9 +62,12 @@ async fn main() {
 async fn handle_connection(mut stream: TcpStream) -> Result<(), HandlingError> {
     println!("Handling connection");
     let mut buf = String::new();
-    stream.read_to_string(&mut buf).await.unwrap();
+    let mut reader = io::BufReader::new(&mut stream);
+    reader.read_line(&mut buf).await?;
+    reader.consume(buf.len());
     println!("{}", buf);
-    let (header, cmd) = buf.split_once(' ').unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
+    let (header, cmd) = buf.trim().split_once(' ').unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
+
     if header != "#battleships" {
         stream.write_all("#battleships connect_rej".as_bytes()).await?;
         return Err(HandlingError { msg: "wrong header".to_owned()});

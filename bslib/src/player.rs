@@ -3,15 +3,20 @@ mod board;
 use board::{Ship, ShipType, OwnBoard, PlacingShipsError};
 use core::fmt::Display;
 use tokio::net::TcpStream;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncWriteExt, self, AsyncBufReadExt};
 
 #[derive(Debug, Clone)]
 pub struct ConnectionError {
-    msg: &'static str
+    msg: String
 }
 impl Display for ConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "ConnectionError: {}", self.msg)
+    }
+}
+impl From<io::Error> for ConnectionError {
+    fn from(value: io::Error) -> Self {
+        Self { msg: format!("{value:}") }
     }
 }
 
@@ -30,19 +35,18 @@ impl <'a> Player<'a> {
     }
 
     pub async fn connect(&'a self, stream: &mut TcpStream) -> Result<(), ConnectionError> {
-        let conn_cmd = "#battleships connect".as_bytes();
-        if stream.write_all(conn_cmd).await.is_err() {
-            return Err(ConnectionError { msg: "Connecting to a game failed" });
-        }
+        let conn_cmd = "#battleships connect\n".as_bytes();
+        stream.write_all(conn_cmd).await?;
+        let mut reader = io::BufReader::new(stream);
         let mut buf = String::new();
-        if stream.read_to_string(&mut buf).await.is_err() {
-            return Err(ConnectionError { msg: "Connecting to a game failed" });
-        };
-        println!("co: {:}", buf);
+        reader.read_line(&mut buf).await?;
+        reader.consume(buf.len());
+        buf = buf.trim().to_owned();
+        println!("co: {:#?}", buf);
         if buf == "#battleship connect_ack" {
             Ok(())
         } else {
-            Err(ConnectionError { msg: "Connecting to a game failed" })
+            Err(ConnectionError { msg: "Connecting to a game failed".to_owned() })
         }
     }
 }

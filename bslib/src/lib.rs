@@ -1,4 +1,5 @@
 pub mod player;
+pub mod tcpProtocol;
 
 use player::Player;
 
