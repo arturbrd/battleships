@@ -5,7 +5,6 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, self};
 use tokio::net::{TcpListener, TcpStream};
 use core::fmt::Display;
 
-
 mod handlers;
 
 #[derive(Serialize, Deserialize)]
@@ -43,7 +42,6 @@ async fn main() {
         .unwrap();
 
     let config: ServerConfig = config.try_deserialize().unwrap();
-
     let listener = TcpListener::bind(config.server_addr).await.expect("failed to create a listener");
 
     loop {
