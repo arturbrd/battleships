@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWriteExt, self};
 use tokio::net::TcpStream;
 
 #[derive(Debug)]
@@ -9,6 +9,11 @@ pub struct RequestError {
 impl Display for RequestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "RequestError: {}", self.msg)
+    }
+}
+impl std::convert::From<io::Error> for RequestError {
+    fn from(value: io::Error) -> Self {
+        Self { msg: format!("{value:}")} 
     }
 }
 impl std::error::Error for RequestError {}
@@ -21,8 +26,8 @@ pub struct Request {
     command: ProtocolCommand,
 }
 impl Request {
-    pub fn as_bytes(&self) -> &[u8] {
-        b"#bs test\n#end"
+    pub fn as_bytes(&self) -> Box<[u8]> {
+        Box::new(*b"#bs test\n#end")
     }
 }
 
@@ -36,8 +41,9 @@ impl<'a> Requester<'a> {
         Self { stream }
     }
 
-    pub async fn send_request(self, request: Request) -> Response {
-        self.stream.write_all(request.as_bytes()).await;
-        Response {}
+    pub async fn send_request(self, request: Request) -> Result<Response, RequestError> {
+        let _ = self.stream.write_all(&request.as_bytes()).await?;
+        self.stream.flush().await?;
+        Ok(Response {})
     }
 }
