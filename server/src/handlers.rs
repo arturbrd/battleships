@@ -7,7 +7,7 @@ pub trait HandlersModError: std::error::Error {}
 
 #[derive(Debug, Clone)]
 pub struct ConnectError {
-    msg: String
+    msg: String,
 }
 impl Display for ConnectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -18,12 +18,16 @@ impl std::error::Error for ConnectError {}
 impl HandlersModError for ConnectError {}
 impl From<io::Error> for ConnectError {
     fn from(value: io::Error) -> Self {
-        Self { msg: format!("{value:}")}
+        Self {
+            msg: format!("{value:}"),
+        }
     }
 }
 
 pub async fn handle_connect_cmd(stream: &mut TcpStream) -> Result<(), ConnectError> {
-    stream.write_all("#battleship connect_ack\n".as_bytes()).await?;
+    stream
+        .write_all("#battleship connect_ack\n".as_bytes())
+        .await?;
     stream.flush().await?;
     Ok(())
 }

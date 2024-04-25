@@ -1,13 +1,13 @@
 mod board;
 
-use board::{Ship, ShipType, OwnBoard, PlacingShipsError};
+use board::{OwnBoard, PlacingShipsError, Ship, ShipType};
 use core::fmt::Display;
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::io::{AsyncWriteExt, self, AsyncBufReadExt};
 
 #[derive(Debug, Clone)]
 pub struct ConnectionError {
-    msg: String
+    msg: String,
 }
 impl Display for ConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -16,15 +16,17 @@ impl Display for ConnectionError {
 }
 impl From<io::Error> for ConnectionError {
     fn from(value: io::Error) -> Self {
-        Self { msg: format!("{value:}") }
+        Self {
+            msg: format!("{value:}"),
+        }
     }
 }
 
 pub struct Player<'a> {
     ships: Vec<Ship>,
-    own_board: OwnBoard<'a>
+    own_board: OwnBoard<'a>,
 }
-impl <'a> Player<'a> {
+impl<'a> Player<'a> {
     pub fn new() -> Self {
         Player::default()
     }
@@ -46,12 +48,23 @@ impl <'a> Player<'a> {
         if buf == "#battleship connect_ack" {
             Ok(())
         } else {
-            Err(ConnectionError { msg: "Connecting to a game failed".to_owned() })
+            Err(ConnectionError {
+                msg: "Connecting to a game failed".to_owned(),
+            })
         }
     }
 }
-impl <'a> Default for Player<'a> {
+impl<'a> Default for Player<'a> {
     fn default() -> Self {
-        Player { ships: vec![Ship::new(ShipType::Carrier), Ship::new(ShipType::Battleship), Ship::new(ShipType::Cruiser), Ship::new(ShipType::Submarine), Ship::new(ShipType::Destroyer)], own_board: OwnBoard::new()}
+        Player {
+            ships: vec![
+                Ship::new(ShipType::Carrier),
+                Ship::new(ShipType::Battleship),
+                Ship::new(ShipType::Cruiser),
+                Ship::new(ShipType::Submarine),
+                Ship::new(ShipType::Destroyer),
+            ],
+            own_board: OwnBoard::new(),
+        }
     }
 }

@@ -1,10 +1,10 @@
 use std::fmt::Display;
-use tokio::io::{AsyncWriteExt, self};
+use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 #[derive(Debug)]
 pub struct RequestError {
-    msg: String
+    msg: String,
 }
 impl Display for RequestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -13,7 +13,9 @@ impl Display for RequestError {
 }
 impl std::convert::From<io::Error> for RequestError {
     fn from(value: io::Error) -> Self {
-        Self { msg: format!("{value:}")} 
+        Self {
+            msg: format!("{value:}"),
+        }
     }
 }
 impl std::error::Error for RequestError {}

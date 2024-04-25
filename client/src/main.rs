@@ -1,5 +1,5 @@
-use tokio::net::TcpStream;
 use bslib::player::Player;
+use tokio::net::TcpStream;
 
 #[tokio::main]
 async fn main() {
@@ -12,7 +12,10 @@ async fn main() {
     // stream.shutdown(std::net::Shutdown::Both).unwrap();
 
     let mut player = Player::new();
-    player.connect(&mut stream).await.expect("failed to connect to a game");
+    player
+        .connect(&mut stream)
+        .await
+        .expect("failed to connect to a game");
     player.set_up().expect("failed to set up a board");
 
     // let mut my_board = OwnBoard::new();
@@ -24,5 +27,4 @@ async fn main() {
     // let ships = vec![carrier, battleship, cruiser, submarine, destroyer];
     // println!("{:?}", my_board.place_ships(&ships).expect("place ships nie działa"));
     // println!("{}", my_board);
-
 }
