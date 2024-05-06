@@ -70,7 +70,7 @@ impl Request {
         Request { command: cmd }
     }
     pub fn as_bytes(&self) -> Box<[u8]> {
-        let req = "#bs ".to_string() + self.command.get_cmd().as_str() + "\n#end";
+        let req = "#bs ".to_string() + self.command.get_cmd().as_str() + "\n#end\n";
         let req = req.into_bytes();
         req.into_boxed_slice()
     }
@@ -87,7 +87,7 @@ impl<'a> Requester<'a> {
     }
 
     pub async fn send_request(&mut self, request: Request) -> Result<Response, RequestError> {
-        let _ = self.stream.write_all(&request.as_bytes()).await?;
+        self.stream.write_all(&request.as_bytes()).await?;
         self.stream.flush().await?;
         self.read_response().await?;
         Ok(Response {})
@@ -98,7 +98,7 @@ impl<'a> Requester<'a> {
         let mut buf = String::new();
         reader.read_line(&mut buf).await?;
         reader.consume(buf.len());
-        buf = buf.trim().to_owned();
+        buf = buf.trim().to_string();
         println!("response: {:#?}", buf);
         if buf == "#bs connect_ack" {
             Ok(Response {})

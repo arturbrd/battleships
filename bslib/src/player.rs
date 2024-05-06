@@ -2,7 +2,7 @@ mod board;
 
 use board::{OwnBoard, PlacingShipsError, Ship, ShipType};
 use core::fmt::Display;
-use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt};
+use tokio::io;
 use tokio::net::TcpStream;
 
 use crate::tcp_protocol::{self, ProtocolCommand, Request, Requester};
@@ -47,7 +47,7 @@ impl<'a> Player<'a> {
 
     pub async fn connect(&'a self, stream: &mut TcpStream) -> Result<(), ConnectionError> {
         let mut requester = Requester::new(stream);
-        let response = requester.send_request(Request::new(ProtocolCommand::CONNECT)).await?;
+        let _res = requester.send_request(Request::new(ProtocolCommand::CONNECT)).await?;
         Ok(())
 
      

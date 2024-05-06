@@ -66,33 +66,40 @@ async fn main() {
     }
 }
 
-async fn handle_connection(mut stream: TcpStream) -> Result<(), HandlingError> {
+async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
     println!("Handling connection");
     let mut buf = String::new();
-    let mut reader = io::BufReader::new(&mut stream);
-    reader.read_line(&mut buf).await?;
-    reader.consume(buf.len());
-    println!("{}", buf);
-    let (header, cmd) = buf
-        .trim()
-        .split_once(' ')
-        .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
+    let (read_half, mut write_half) = tokio::io::split(stream);
+    let mut reader = io::BufReader::new(read_half);
+    while reader.read_line(&mut buf).await? != 0 {
+        println!("{}", buf);
+        let (header, cmd) = buf
+            .trim()
+            .split_once(' ')
+            .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
 
-    if header != "#bs" {
-        stream
-            .write_all("#bs connect_rej".as_bytes())
-            .await?;
-        return Err(HandlingError {
-            msg: "wrong header".to_owned(),
-        });
-    }
-    match cmd {
-        "connect" => {
-            handlers::handle_connect_cmd(&mut stream).await?;
-            Ok(())
+        if header != "#bs" {
+            write_half
+                .write_all("#bs connect_rej".as_bytes())
+                .await?;
+            return Err(HandlingError {
+                msg: "wrong header".to_owned(),
+            });
         }
-        _ => Err(HandlingError {
-            msg: "no such command".to_owned(),
-        }),
+        match cmd {
+            "connect" => {
+                while reader.read_line(&mut buf).await? != 0 {
+                    if buf.contains("#end") {
+                        break;
+                    }
+                }
+                println!("{}", buf);
+                handlers::handle_connect_cmd(&mut write_half).await?;
+            }
+            _ => return Err(HandlingError {
+                msg: "no such command".to_owned(),
+            }),
+        }
     }
+    Ok(())
 }

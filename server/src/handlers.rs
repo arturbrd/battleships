@@ -1,5 +1,5 @@
 use core::fmt::Display;
-use tokio::io;
+use tokio::io::{self, WriteHalf};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
@@ -24,7 +24,7 @@ impl From<io::Error> for ConnectError {
     }
 }
 
-pub async fn handle_connect_cmd(stream: &mut TcpStream) -> Result<(), ConnectError> {
+pub async fn handle_connect_cmd(stream: &mut WriteHalf<TcpStream>) -> Result<(), ConnectError> {
     stream
         .write_all("#bs connect_ack\n".as_bytes())
         .await?;
