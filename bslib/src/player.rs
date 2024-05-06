@@ -5,6 +5,8 @@ use core::fmt::Display;
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+use crate::tcp_protocol::{self, ProtocolCommand, Request, Requester};
+
 #[derive(Debug, Clone)]
 pub struct ConnectionError {
     msg: String,
@@ -16,6 +18,13 @@ impl Display for ConnectionError {
 }
 impl From<io::Error> for ConnectionError {
     fn from(value: io::Error) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
+impl<T: tcp_protocol::ProtocolError> From<T> for ConnectionError {
+    fn from(value: T) -> Self {
         Self {
             msg: format!("{value:}"),
         }
@@ -37,21 +46,11 @@ impl<'a> Player<'a> {
     }
 
     pub async fn connect(&'a self, stream: &mut TcpStream) -> Result<(), ConnectionError> {
-        let conn_cmd = "#battleships connect\n".as_bytes();
-        stream.write_all(conn_cmd).await?;
-        let mut reader = io::BufReader::new(stream);
-        let mut buf = String::new();
-        reader.read_line(&mut buf).await?;
-        reader.consume(buf.len());
-        buf = buf.trim().to_owned();
-        println!("co: {:#?}", buf);
-        if buf == "#battleship connect_ack" {
-            Ok(())
-        } else {
-            Err(ConnectionError {
-                msg: "Connecting to a game failed".to_owned(),
-            })
-        }
+        let mut requester = Requester::new(stream);
+        let response = requester.send_request(Request::new(ProtocolCommand::CONNECT)).await?;
+        Ok(())
+
+     
     }
 }
 impl<'a> Default for Player<'a> {

@@ -26,7 +26,7 @@ impl From<io::Error> for ConnectError {
 
 pub async fn handle_connect_cmd(stream: &mut TcpStream) -> Result<(), ConnectError> {
     stream
-        .write_all("#battleship connect_ack\n".as_bytes())
+        .write_all("#bs connect_ack\n".as_bytes())
         .await?;
     stream.flush().await?;
     Ok(())

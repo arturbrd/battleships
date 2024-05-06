@@ -78,9 +78,9 @@ async fn handle_connection(mut stream: TcpStream) -> Result<(), HandlingError> {
         .split_once(' ')
         .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
 
-    if header != "#battleships" {
+    if header != "#bs" {
         stream
-            .write_all("#battleships connect_rej".as_bytes())
+            .write_all("#bs connect_rej".as_bytes())
             .await?;
         return Err(HandlingError {
             msg: "wrong header".to_owned(),
