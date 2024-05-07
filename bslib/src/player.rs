@@ -47,7 +47,7 @@ impl<'a> Player<'a> {
 
     pub async fn connect(&'a self, stream: &mut TcpStream) -> Result<(), ConnectionError> {
         let mut requester = Requester::new(stream);
-        let _res = requester.send_request(Request::new(ProtocolCommand::CONNECT)).await?;
+        let _res = requester.send_request(Request::new(ProtocolCommand::Connect, "secret")).await?;
         Ok(())
 
      

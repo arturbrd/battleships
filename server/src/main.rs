@@ -4,6 +4,7 @@ use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use bslib::tcp_protocol::PacketReader;
 
 mod handlers;
 
@@ -72,7 +73,7 @@ async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
     let (read_half, mut write_half) = tokio::io::split(stream);
     let mut reader = io::BufReader::new(read_half);
     while reader.read_line(&mut buf).await? != 0 {
-        println!("{}", buf);
+        println!("header: {}", buf);
         let (header, cmd) = buf
             .trim()
             .split_once(' ')
@@ -88,18 +89,16 @@ async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
         }
         match cmd {
             "connect" => {
-                while reader.read_line(&mut buf).await? != 0 {
-                    if buf.contains("#end") {
-                        break;
-                    }
-                }
-                println!("{}", buf);
+                let packet_reader = PacketReader::new(&mut reader);
+                let packet = packet_reader.read_packet().await?;
+                println!("packet: {}", packet);
                 handlers::handle_connect_cmd(&mut write_half).await?;
             }
             _ => return Err(HandlingError {
                 msg: "no such command".to_owned(),
             }),
         }
+        buf.clear();
     }
     Ok(())
 }

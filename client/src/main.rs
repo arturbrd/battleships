@@ -16,6 +16,11 @@ async fn main() {
         .connect(&mut stream)
         .await
         .expect("failed to connect to a game");
+    player
+        .connect(&mut stream)
+        .await
+        .expect("failed to connect to a game");
+ 
     player.set_up().expect("failed to set up a board");
 
     // let mut my_board = OwnBoard::new();

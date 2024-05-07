@@ -1,6 +1,10 @@
 use std::fmt::Display;
-use tokio::io::{self, AsyncWriteExt, AsyncBufReadExt};
+use tokio::io::BufReader;
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, ReadHalf};
 use tokio::net::TcpStream;
+
+const PACKET_HEADER: &str = "#bs";
+const PACKET_END: &str = "\n#end\n";
 
 pub trait ProtocolError: std::error::Error {}
 
@@ -50,27 +54,28 @@ impl std::error::Error for ResponseError {}
 impl ProtocolError for ResponseError {} 
 
 pub enum ProtocolCommand {
-    TEST,
-    CONNECT
+    Connect,
+    ConnectResp{ status: String }
 }
 impl ProtocolCommand {
-    pub fn get_cmd(&self) -> String {
+    pub fn get_cmd(&self) -> &str {
         match self {
-            Self::TEST => "test".to_string(),
-            Self::CONNECT => "connect".to_string()
+            Self::Connect => "connect",
+            Self::ConnectResp{ .. } => "connect_resp"
         }
     }
 }
 
 pub struct Request {
     command: ProtocolCommand,
+    body: String
 }
 impl Request {
-    pub fn new(cmd: ProtocolCommand) -> Self {
-        Request { command: cmd }
+    pub fn new(cmd: ProtocolCommand, body: &str) -> Self {
+        Request { command: cmd, body: String::from(body) }
     }
     pub fn as_bytes(&self) -> Box<[u8]> {
-        let req = "#bs ".to_string() + self.command.get_cmd().as_str() + "\n#end\n";
+        let req = PACKET_HEADER.to_string() + " " + self.command.get_cmd() + "\n" + &self.body + PACKET_END;
         let req = req.into_bytes();
         req.into_boxed_slice()
     }
@@ -110,3 +115,25 @@ impl<'a> Requester<'a> {
     }
 }
 
+pub struct PacketReader<'a> {
+    reader: &'a mut BufReader<ReadHalf<TcpStream>>,
+}
+impl<'a> PacketReader<'a> {
+    pub fn new(reader: &'a mut BufReader<ReadHalf<TcpStream>>) -> Self {
+        Self { reader }
+    }
+
+    pub async fn read_packet(self) -> Result<String, io::Error> {
+        let mut buf = String::new();
+        let mut packet = String::new();
+        while self.reader.read_line(&mut buf).await? != 0 {
+            if buf == "#end\n" {
+                buf.clear();
+                break;
+            }
+            packet.push_str(&buf);
+            buf.clear()
+        }       
+        Ok(packet)
+    }
+}
