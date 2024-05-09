@@ -16,6 +16,7 @@ async fn main() {
         .connect(&mut stream)
         .await
         .expect("failed to connect to a game");
+    println!("Connecting again");
     player
         .connect(&mut stream)
         .await

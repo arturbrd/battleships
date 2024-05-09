@@ -5,7 +5,7 @@ use core::fmt::Display;
 use tokio::io;
 use tokio::net::TcpStream;
 
-use crate::tcp_protocol::{self, ProtocolCommand, Request, Requester};
+use crate::tcp_protocol::{self, ProtocolCommand, Packet, Requester};
 
 #[derive(Debug, Clone)]
 pub struct ConnectionError {
@@ -47,7 +47,7 @@ impl<'a> Player<'a> {
 
     pub async fn connect(&'a self, stream: &mut TcpStream) -> Result<(), ConnectionError> {
         let mut requester = Requester::new(stream);
-        let _res = requester.send_request(Request::new(ProtocolCommand::Connect, "secret")).await?;
+        let _res = requester.send_request(Packet::new(ProtocolCommand::Connect, "secret").expect("creating packet failed unexpectedly")).await?;
         Ok(())
 
      

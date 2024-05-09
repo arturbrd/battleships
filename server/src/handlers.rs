@@ -1,4 +1,5 @@
 use core::fmt::Display;
+use bslib::tcp_protocol::PacketReader;
 use tokio::io::{self, WriteHalf};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -24,6 +25,10 @@ impl From<io::Error> for ConnectError {
     }
 }
 
+pub async fn handle_unknown(packet_manager: &mut PacketReader) -> Result<(), ConnectError> {
+    Ok(())
+}
+
 pub async fn handle_connect_cmd(stream: &mut WriteHalf<TcpStream>) -> Result<(), ConnectError> {
     stream
         .write_all("#bs connect_ack\n".as_bytes())
@@ -31,3 +36,5 @@ pub async fn handle_connect_cmd(stream: &mut WriteHalf<TcpStream>) -> Result<(),
     stream.flush().await?;
     Ok(())
 }
+
+

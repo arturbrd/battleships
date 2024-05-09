@@ -1,10 +1,11 @@
 use config::{Config, Environment};
+use tokio::sync::mpsc;
 use core::fmt::Display;
 use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
-use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::{self, WriteHalf};
 use tokio::net::{TcpListener, TcpStream};
-use bslib::tcp_protocol::PacketReader;
+use bslib::tcp_protocol::{Packet, PacketReader, ProtocolCommand};
 
 mod handlers;
 
@@ -33,6 +34,20 @@ impl From<io::Error> for HandlingError {
     fn from(value: io::Error) -> Self {
         Self {
             msg: format!("{value:}"),
+        }
+    }
+}
+impl From<tokio::task::JoinError> for HandlingError {
+    fn from(value: tokio::task::JoinError) -> Self {
+        Self {
+            msg: format!("{value:}")
+        }
+    }
+}
+impl From<bslib::tcp_protocol::ReaderError> for HandlingError {
+    fn from(value: bslib::tcp_protocol::ReaderError) -> Self {
+        Self {
+            msg: format!("{value:}")
         }
     }
 }
@@ -69,36 +84,34 @@ async fn main() {
 
 async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
     println!("Handling connection");
-    let mut buf = String::new();
     let (read_half, mut write_half) = tokio::io::split(stream);
-    let mut reader = io::BufReader::new(read_half);
-    while reader.read_line(&mut buf).await? != 0 {
-        println!("header: {}", buf);
-        let (header, cmd) = buf
-            .trim()
-            .split_once(' ')
-            .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
+    
+    let (tx, mut rx) = mpsc::channel(128);
 
-        if header != "#bs" {
-            write_half
-                .write_all("#bs connect_rej".as_bytes())
-                .await?;
-            return Err(HandlingError {
-                msg: "wrong header".to_owned(),
-            });
-        }
-        match cmd {
-            "connect" => {
-                let packet_reader = PacketReader::new(&mut reader);
-                let packet = packet_reader.read_packet().await?;
-                println!("packet: {}", packet);
-                handlers::handle_connect_cmd(&mut write_half).await?;
-            }
-            _ => return Err(HandlingError {
-                msg: "no such command".to_owned(),
-            }),
-        }
-        buf.clear();
+    let listener = tokio::spawn(async move {
+        let mut packet_reader = PacketReader::new(io::BufReader::new(read_half), tx);
+        packet_reader.listen_stream().await
+    });
+
+    while let Some(packet) = rx.recv().await {
+        if let Some(packet) = packet {
+            println!("{:#?}", packet);
+            let result = decode_handler(packet, &mut write_half).await?;            
+        } else {
+            println!("Wrong header");
+        } 
+    }
+    let _ = listener.await??;
+    Ok(())
+}
+
+async fn decode_handler(packet: Packet, write_half: &mut WriteHalf<TcpStream>) -> Result<(), HandlingError> {
+    match packet.get_cmd() {
+        ProtocolCommand::Connect => {
+            handlers::handle_connect_cmd(write_half).await?
+        },
+        _ => ()
     }
     Ok(())
 }
+
