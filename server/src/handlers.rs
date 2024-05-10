@@ -31,7 +31,7 @@ pub async fn handle_unknown(packet_manager: &mut PacketReader) -> Result<(), Con
 
 pub async fn handle_connect_cmd(stream: &mut WriteHalf<TcpStream>) -> Result<(), ConnectError> {
     stream
-        .write_all("#bs connect_ack\n".as_bytes())
+        .write_all("#bs connect_resp\n#end\n".as_bytes())
         .await?;
     stream.flush().await?;
     Ok(())

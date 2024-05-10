@@ -34,10 +34,15 @@ impl<T: tcp_protocol::ProtocolError> From<T> for ConnectionError {
 pub struct Player<'a> {
     ships: Vec<Ship>,
     own_board: OwnBoard<'a>,
+    requester: Requester
 }
 impl<'a> Player<'a> {
-    pub fn new() -> Self {
-        Player::default()
+    pub fn new(stream: TcpStream) -> Self {
+        Self {
+            ships: Vec::new(),
+            own_board: OwnBoard::new(),
+            requester: Requester::new(stream)
+        }
     }
 
     pub fn set_up(&'a mut self) -> Result<(), PlacingShipsError> {
@@ -45,25 +50,25 @@ impl<'a> Player<'a> {
         Ok(())
     }
 
-    pub async fn connect(&'a self, stream: &mut TcpStream) -> Result<(), ConnectionError> {
-        let mut requester = Requester::new(stream);
-        let _res = requester.send_request(Packet::new(ProtocolCommand::Connect, "secret").expect("creating packet failed unexpectedly")).await?;
+    pub async fn connect(&mut self) -> Result<(), ConnectionError> {
+        let _res = self.requester.
+            send_request(Packet::new(ProtocolCommand::Connect, "secret")
+                .expect("creating packet failed unexpectedly"))
+            .await?;
         Ok(())
-
-     
     }
 }
-impl<'a> Default for Player<'a> {
-    fn default() -> Self {
-        Player {
-            ships: vec![
-                Ship::new(ShipType::Carrier),
-                Ship::new(ShipType::Battleship),
-                Ship::new(ShipType::Cruiser),
-                Ship::new(ShipType::Submarine),
-                Ship::new(ShipType::Destroyer),
-            ],
-            own_board: OwnBoard::new(),
-        }
-    }
-}
+// impl<'a> Default for Player<'a> {
+//     fn default() -> Self {
+//         Player {
+//             ships: vec![
+//                 Ship::new(ShipType::Carrier),
+//                 Ship::new(ShipType::Battleship),
+//                 Ship::new(ShipType::Cruiser),
+//                 Ship::new(ShipType::Submarine),
+//                 Ship::new(ShipType::Destroyer),
+//             ],
+//             own_board: OwnBoard::new(),
+//         }
+//     }
+// }

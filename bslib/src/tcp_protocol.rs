@@ -2,7 +2,7 @@ use std::fmt::Display;
 use tokio::io::{BufReader, WriteHalf};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, ReadHalf};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 pub const PACKET_HEADER: &str = "#bs";
 pub const PACKET_END: &str = "\n#end\n";
@@ -27,6 +27,13 @@ impl std::convert::From<io::Error> for RequestError {
 }
 impl std::convert::From<ResponseError> for RequestError {
     fn from(value: ResponseError) -> Self {
+        Self {
+            msg: format!("{value:}")
+        }
+    }
+}
+impl std::convert::From<PacketReaderError> for RequestError {
+    fn from(value: PacketReaderError) -> Self {
         Self {
             msg: format!("{value:}")
         }
@@ -105,100 +112,96 @@ impl Packet {
 
 pub struct Response {}
 
-pub struct Requester<'a> {
-    stream: &'a mut TcpStream,
+pub struct Requester {
+    packet_reader: PacketReader,
+    write_half: WriteHalf<TcpStream>,
 }
-impl<'a> Requester<'a> {
-    pub fn new(stream: &'a mut TcpStream) -> Self {
-        Self { stream }
+impl Requester {
+    pub fn new(stream: TcpStream) -> Self {
+        let (read_half, write_half) = tokio::io::split(stream);
+        let packet_reader = PacketReader::new(BufReader::new(read_half));
+        Self { packet_reader, write_half }
     }
 
     pub async fn send_request(&mut self, request: Packet) -> Result<Response, RequestError> {
-        self.stream.write_all(&request.as_bytes()).await?;
-        self.stream.flush().await?;
-        self.read_response().await?;
-        Ok(Response {})
-    }
-
-    async fn read_response(&mut self) -> Result<Response, ResponseError> {
-        let mut reader = io::BufReader::new(&mut self.stream);
-        let mut buf = String::new();
-        reader.read_line(&mut buf).await?;
-        reader.consume(buf.len());
-        buf = buf.trim().to_string();
-        println!("response: {:#?}", buf);
-        if buf == "#bs connect_ack" {
-            Ok(Response {})
-        } else {
-            Err(ResponseError {
-                msg: "Connecting to a game failed".to_owned(),
-            })
+        self.write_half.write_all(&request.as_bytes()).await?;
+        self.write_half.flush().await?;
+        let response = self.packet_reader.read_packet().await?;
+        println!("{:#?}", response);
+        match response {
+            Some(_) => {
+                Ok(Response {})
+            }
+            None => {
+                Err(RequestError {
+                    msg: "Response not received".to_owned(),
+                })
+            }
         }
-    }
+    }    
 }
 
 #[derive(Debug)]
-pub struct ReaderError {
+pub struct PacketReaderError {
     msg: String,
 }
-impl Display for ReaderError {
+impl Display for PacketReaderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ReaderError: {}", self.msg)
+        write!(f, "PacketReaderError: {}", self.msg)
     }
 }
-impl std::convert::From<io::Error> for ReaderError {
+impl std::convert::From<io::Error> for PacketReaderError {
     fn from(value: io::Error) -> Self {
         Self {
             msg: format!("{value:}"),
         }
     }
 }
-impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for ReaderError {
+impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for PacketReaderError {
     fn from(value: tokio::sync::mpsc::error::SendError<T>) -> Self {
         Self {
             msg: format!("{value:}"),
         }
     }
 }
-impl std::error::Error for ReaderError {}
-impl ProtocolError for ReaderError {} 
+impl std::error::Error for PacketReaderError {}
+impl ProtocolError for PacketReaderError {} 
 
 pub struct PacketReader {
     reader: BufReader<ReadHalf<TcpStream>>,
-    tx: Sender<Option<Packet>>
 }
 impl PacketReader {
-    pub fn new(reader: BufReader<ReadHalf<TcpStream>>, tx: Sender<Option<Packet>>) -> Self {
-        Self { reader, tx }
+    pub fn new(reader: BufReader<ReadHalf<TcpStream>>) -> Self {
+        Self { reader }
     }
 
-    pub async fn listen_stream(&mut self) -> Result<(), ReaderError> {
+    pub async fn read_packet(&mut self) -> Result<Option<Packet>, PacketReaderError> {
         let mut buf = String::new();
-        while self.reader.read_line(&mut buf).await? != 0 {
-            println!("header: {}", buf);
-            let (header, cmd) = buf
-                .trim()
-                .split_once(' ')
-                .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
+        if self.reader.read_line(&mut buf).await? == 0 {
+            return Ok(None)
+        };
+        let (header, cmd) = buf
+            .trim()
+            .split_once(' ')
+            .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
 
-            if header != PACKET_HEADER {
-                self.tx.send(None).await?;
-            }
-            let body = self.read_body().await?;
-            
-            let cmd = ProtocolCommand::from_cmd(cmd);
-            match cmd {
-                Some(cmd) => {
-                    self.tx.send(Packet::new(cmd, &body)).await;
-                }
-                None => {
-                    self.tx.send(Packet::new(ProtocolCommand::UnknownCmd, &body)).await;
-                },
-            }
-            buf.clear();
-
+        let body = self.read_body().await?;
+        if header != PACKET_HEADER {
+            return Err(PacketReaderError { msg: String::from("Wrong packet header") });
         }
-        Ok(())
+
+        let cmd = ProtocolCommand::from_cmd(cmd);
+        let packet = match cmd {
+            Some(cmd) => {
+                Ok(Some(Packet::new(cmd, &body).expect("it shouldn't panic")))
+            }
+            None => {
+                Ok(Some(Packet::new(ProtocolCommand::UnknownCmd, &body).expect("it shouldn't panic")))
+            }
+        };
+        buf.clear();
+        packet
+
     }
 
     pub async fn read_body(&mut self) -> Result<String, io::Error> {

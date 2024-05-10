@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{self, WriteHalf};
 use tokio::net::{TcpListener, TcpStream};
 use bslib::tcp_protocol::{Packet, PacketReader, ProtocolCommand};
+use tokio::sync::mpsc::{error::SendError, Sender};
 
 mod handlers;
 
@@ -30,6 +31,13 @@ impl<E: handlers::HandlersModError> From<E> for HandlingError {
         }
     }
 }
+impl<T> From<SendError<T>> for HandlingError {
+    fn from(value: SendError<T>) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
 impl From<io::Error> for HandlingError {
     fn from(value: io::Error) -> Self {
         Self {
@@ -44,8 +52,8 @@ impl From<tokio::task::JoinError> for HandlingError {
         }
     }
 }
-impl From<bslib::tcp_protocol::ReaderError> for HandlingError {
-    fn from(value: bslib::tcp_protocol::ReaderError) -> Self {
+impl From<bslib::tcp_protocol::PacketReaderError> for HandlingError {
+    fn from(value: bslib::tcp_protocol::PacketReaderError) -> Self {
         Self {
             msg: format!("{value:}")
         }
@@ -89,19 +97,23 @@ async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
     let (tx, mut rx) = mpsc::channel(128);
 
     let listener = tokio::spawn(async move {
-        let mut packet_reader = PacketReader::new(io::BufReader::new(read_half), tx);
-        packet_reader.listen_stream().await
+        let packet_reader = PacketReader::new(io::BufReader::new(read_half));
+        listen_stream(packet_reader, tx).await
     });
 
     while let Some(packet) = rx.recv().await {
-        if let Some(packet) = packet {
-            println!("{:#?}", packet);
-            let result = decode_handler(packet, &mut write_half).await?;            
-        } else {
-            println!("Wrong header");
-        } 
+        println!("{:#?}", packet);
+        decode_handler(packet, &mut write_half).await?; 
     }
     let _ = listener.await??;
+    Ok(())
+}
+
+async fn listen_stream(mut packet_reader: PacketReader, tx: Sender<Packet>) -> Result<(), HandlingError> {
+    while let Some(packet) = packet_reader.read_packet().await? {
+        println!("sending packet to handle_connect");
+        tx.send(packet).await?;
+    }
     Ok(())
 }
 
@@ -112,6 +124,7 @@ async fn decode_handler(packet: Packet, write_half: &mut WriteHalf<TcpStream>) -
         },
         _ => ()
     }
+    println!("handler has finished");
     Ok(())
 }
 

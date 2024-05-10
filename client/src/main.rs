@@ -11,14 +11,14 @@ async fn main() {
     // stream.write_all(sample).unwrap();
     // stream.shutdown(std::net::Shutdown::Both).unwrap();
 
-    let mut player = Player::new();
+    let mut player = Player::new(stream);
     player
-        .connect(&mut stream)
+        .connect()
         .await
         .expect("failed to connect to a game");
     println!("Connecting again");
     player
-        .connect(&mut stream)
+        .connect()
         .await
         .expect("failed to connect to a game");
  
