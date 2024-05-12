@@ -1,65 +1,20 @@
+use bslib::tcp_protocol::{Packet, PacketReader, ProtocolCommand};
 use config::{Config, Environment};
-use tokio::sync::mpsc;
-use core::fmt::Display;
 use dotenv::dotenv;
+use error::HandlingError;
 use serde::{Deserialize, Serialize};
 use tokio::io::{self, WriteHalf};
 use tokio::net::{TcpListener, TcpStream};
-use bslib::tcp_protocol::{Packet, PacketReader, ProtocolCommand};
-use tokio::sync::mpsc::{error::SendError, Sender};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
 
-mod handlers;
+mod error;
+pub mod handlers;
 
 #[derive(Serialize, Deserialize)]
 pub struct ServerConfig {
     pub server_addr: String,
 }
-
-#[derive(Debug, Clone)]
-pub struct HandlingError {
-    msg: String,
-}
-impl Display for HandlingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "HandlingError: {}", self.msg)
-    }
-}
-impl<E: handlers::HandlersModError> From<E> for HandlingError {
-    fn from(value: E) -> Self {
-        Self {
-            msg: format!("{value:}"),
-        }
-    }
-}
-impl<T> From<SendError<T>> for HandlingError {
-    fn from(value: SendError<T>) -> Self {
-        Self {
-            msg: format!("{value:}"),
-        }
-    }
-}
-impl From<io::Error> for HandlingError {
-    fn from(value: io::Error) -> Self {
-        Self {
-            msg: format!("{value:}"),
-        }
-    }
-}
-impl From<tokio::task::JoinError> for HandlingError {
-    fn from(value: tokio::task::JoinError) -> Self {
-        Self {
-            msg: format!("{value:}")
-        }
-    }
-}
-impl From<bslib::tcp_protocol::PacketReaderError> for HandlingError {
-    fn from(value: bslib::tcp_protocol::PacketReaderError) -> Self {
-        Self {
-            msg: format!("{value:}")
-        }
-    }
-}
-impl std::error::Error for HandlingError {}
 
 #[tokio::main]
 async fn main() {
@@ -93,7 +48,7 @@ async fn main() {
 async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
     println!("Handling connection");
     let (read_half, mut write_half) = tokio::io::split(stream);
-    
+
     let (tx, mut rx) = mpsc::channel(128);
 
     let listener = tokio::spawn(async move {
@@ -103,13 +58,16 @@ async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
 
     while let Some(packet) = rx.recv().await {
         println!("{:#?}", packet);
-        decode_handler(packet, &mut write_half).await?; 
+        decode_handler(packet, &mut write_half).await?;
     }
     let _ = listener.await??;
     Ok(())
 }
 
-async fn listen_stream(mut packet_reader: PacketReader, tx: Sender<Packet>) -> Result<(), HandlingError> {
+async fn listen_stream(
+    mut packet_reader: PacketReader,
+    tx: Sender<Packet>,
+) -> Result<(), HandlingError> {
     while let Some(packet) = packet_reader.read_packet().await? {
         println!("sending packet to handle_connect");
         tx.send(packet).await?;
@@ -117,14 +75,14 @@ async fn listen_stream(mut packet_reader: PacketReader, tx: Sender<Packet>) -> R
     Ok(())
 }
 
-async fn decode_handler(packet: Packet, write_half: &mut WriteHalf<TcpStream>) -> Result<(), HandlingError> {
+async fn decode_handler(
+    packet: Packet,
+    write_half: &mut WriteHalf<TcpStream>,
+) -> Result<(), HandlingError> {
     match packet.get_cmd() {
-        ProtocolCommand::Connect => {
-            handlers::handle_connect_cmd(write_half).await?
-        },
-        _ => ()
+        ProtocolCommand::Connect => handlers::handle_connect_cmd(write_half).await?,
+        _ => (),
     }
     println!("handler has finished");
     Ok(())
 }
-

@@ -1,24 +1,7 @@
+use crate::player::board::error::{PlacingShipsError, UserInputError};
 use std::{fmt::Display, io::stdin};
 
-#[derive(Debug, Clone)]
-pub struct PlacingShipsError {
-    msg: &'static str,
-}
-impl Display for PlacingShipsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PlacingShipsError: {}", self.msg)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct UserInputError {
-    msg: &'static str,
-}
-impl Display for UserInputError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UserInputError: {}", self.msg)
-    }
-}
+pub mod error;
 
 const COORDINATES_LETTERS: &str = "abcdefghij";
 
@@ -38,9 +21,9 @@ impl<'a> OwnBoard<'a> {
     // prompt user to place their ships
     pub fn place_ships(&mut self, ships: &'a Vec<Ship>) -> Result<(), PlacingShipsError> {
         if self.ships_placed {
-            return Err(PlacingShipsError {
-                msg: "Ships were already placed",
-            });
+            return Err(PlacingShipsError::new(String::from(
+                "Ships were already placed",
+            )));
         };
         for ship in ships {
             self.place_ship(ship)?
@@ -50,11 +33,6 @@ impl<'a> OwnBoard<'a> {
     }
     // method used by place_ships to place one ship
     fn place_ship(&mut self, ship: &'a Ship) -> Result<(), PlacingShipsError> {
-        if self.ships_placed {
-            return Err(PlacingShipsError {
-                msg: "Ships have been already placed",
-            });
-        }
         print!("\x1B[2J\x1B[1;1H");
         loop {
             println!("{}", self);
@@ -96,9 +74,7 @@ impl<'a> OwnBoard<'a> {
         ship: &Ship,
     ) -> Result<Vec<[usize; 2]>, UserInputError> {
         if !input.contains('-') {
-            return Err(UserInputError {
-                msg: "Missing hyphen",
-            });
+            return Err(UserInputError::new(String::from("Missing hyphen")));
         }
         let fields = input.split('-');
         let mut decoded_indexes = Vec::new();
@@ -111,9 +87,9 @@ impl<'a> OwnBoard<'a> {
             } else if decoded_indexes[0][1] == decoded_indexes[1][1] {
                 (0, 1)
             } else {
-                return Err(UserInputError {
-                    msg: "Coordinates are not in line",
-                });
+                return Err(UserInputError::new(String::from(
+                    "Coordinates are not in line",
+                )));
             };
         let (greater, lesser) =
             if decoded_indexes[0][changing_coord] >= decoded_indexes[1][changing_coord] {
@@ -142,9 +118,9 @@ impl<'a> OwnBoard<'a> {
                 }
             }
         } else {
-            return Err(UserInputError {
-                msg: "This range is either too long or too short for this ship",
-            });
+            return Err(UserInputError::new(String::from(
+                "This range is either too long or too short for this ship",
+            )));
         }
         Ok(decoded_indexes)
     }
@@ -157,26 +133,18 @@ impl<'a> OwnBoard<'a> {
         {
             if chars.len() == 3 && !chars[2].is_ascii_digit() {
                 println!("{:#?}", chars);
-                return Err(UserInputError {
-                    msg: "Wrong format",
-                });
+                return Err(UserInputError::new(String::from("Wrong format")));
             }
             let (i, j) = chars.split_at(1);
-            let i = COORDINATES_LETTERS.find(i).ok_or(UserInputError {
-                msg: "Such letters are not allowed in coordinates",
-            })?;
-            let j: usize = j
-                .iter()
-                .collect::<String>()
-                .parse()
-                .map_err(|_| UserInputError {
-                    msg: "Cannot convert to a number",
-                })?;
+            let i = COORDINATES_LETTERS
+                .find(i)
+                .ok_or(UserInputError::new(String::from(
+                    "Such letters are not allowed in coordinates",
+                )))?;
+            let j: usize = j.iter().collect::<String>().parse()?;
             Ok([i, j - 1])
         } else {
-            Err(UserInputError {
-                msg: "Wrong format",
-            })
+            Err(UserInputError::new(String::from("Wrong format")))
         }
     }
 
@@ -187,9 +155,7 @@ impl<'a> OwnBoard<'a> {
     ) -> Result<(), PlacingShipsError> {
         for [i, j] in coordinates {
             if self.board[*i][*j].ship.is_some() {
-                return Err(PlacingShipsError {
-                    msg: "Tile is not empty",
-                });
+                return Err(PlacingShipsError::new(String::from("Tile is not empty")));
             }
 
             let top = if *i > 0 { i - 1 } else { 0 };
@@ -200,9 +166,9 @@ impl<'a> OwnBoard<'a> {
             for k in top..down + 1 {
                 for l in left..right + 1 {
                     if self.board[k][l].ship.is_some() {
-                        return Err(PlacingShipsError {
-                            msg: "The tile is next to another ship",
-                        });
+                        return Err(PlacingShipsError::new(String::from(
+                            "The tile is next to another ship",
+                        )));
                     }
                 }
             }
