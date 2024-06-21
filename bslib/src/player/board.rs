@@ -29,39 +29,42 @@ impl<'a> OwnBoard<'a> {
             self.place_ship(ship)?
         }
         self.ships_placed = true;
+        self.print_board("Ships placed", None);
         Ok(())
     }
     // method used by place_ships to place one ship
     fn place_ship(&mut self, ship: &'a Ship) -> Result<(), PlacingShipsError> {
-        print!("\x1B[2J\x1B[1;1H");
+        // print!("\x1B[2J\x1B[1;1H");
+        let mut err_msg: Option<String> = None;
+        let prompt = format!("Place your {} ({} tiles long) - enter tiles coordinates like this >>a1-a3<<:",
+        ship, ship.size);
         loop {
-            println!("{}", self);
-            println!(
-                "Place your {} ({} tiles long) - enter tiles coordinates like this >>a1-a3<<:",
-                ship, ship.size
-            );
+            // println!("{}", self);
+            // println!(
+            //     "Place your {} ({} tiles long) - enter tiles coordinates like this >>a1-a3<<:",
+            //     ship, ship.size
+            // );
+
+            self.print_board(&prompt, err_msg);
             let mut buf = String::new();
             if let Err(e) = stdin().read_line(&mut buf) {
-                print!("\x1B[2J\x1B[1;1H");
-                println!("Couldn't read form stdin! - {} - Trying again...\n", e);
+                err_msg = Some(format!("Couldn't read form stdin! - {} - Trying again...\n", e));
                 continue;
             }
             let coordinates = Self::decode_ship_placing_input(buf.trim(), ship);
             match coordinates {
                 Ok(coordinates) => {
                     if let Err(e) = self.place_on_tiles(&coordinates, ship) {
-                        print!("\x1B[2J\x1B[1;1H");
-                        println!("{} - trying again...\n", e);
+                        err_msg = Some(format!("{} - trying again...\n", e));
                         continue;
                     }
                     break;
                 }
                 Err(e) => {
-                    print!("\x1B[2J\x1B[1;1H");
-                    println!(
+                    err_msg = Some(format!(
                         "Couldn't convert to coordinates! - {} - Trying again...\n",
                         e
-                    );
+                    ));
                     continue;
                 }
             }
@@ -178,6 +181,15 @@ impl<'a> OwnBoard<'a> {
         }
         Ok(())
     }
+
+    fn print_board(&self, prompt: &str, err_msg: Option<String>) {
+        print!("\x1B[2J\x1B[1;1H");
+        println!("{}", self);
+        if let Some(err_msg) = err_msg {
+            println!("{}", err_msg)
+        }
+        println!("{}", prompt);
+    }
 }
 impl Display for OwnBoard<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -223,7 +235,7 @@ impl Display for OwnTile<'_> {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum ShipType {
     Carrier,
     Battleship,
@@ -232,7 +244,7 @@ pub enum ShipType {
     Destroyer,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct Ship {
     ship_type: ShipType,
     size: u8,

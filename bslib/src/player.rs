@@ -1,5 +1,5 @@
 use crate::tcp_protocol::{Packet, ProtocolCommand, Requester};
-use board::{error::PlacingShipsError, OwnBoard, Ship};
+use board::{error::PlacingShipsError, OwnBoard, Ship, ShipType};
 use error::ConnectionError;
 use tokio::net::TcpStream;
 
@@ -14,7 +14,11 @@ pub struct Player<'a> {
 impl<'a> Player<'a> {
     pub fn new(stream: TcpStream) -> Self {
         Self {
-            ships: Vec::new(),
+            ships: vec![Ship::new(ShipType::Carrier),
+            Ship::new(ShipType::Battleship),
+            Ship::new(ShipType::Cruiser),
+            Ship::new(ShipType::Submarine),
+            Ship::new(ShipType::Destroyer)],
             own_board: OwnBoard::new(),
             requester: Requester::new(stream),
         }
