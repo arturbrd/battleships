@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use error::{PacketReaderError, RequestError};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, ReadHalf};
 use tokio::io::{BufReader, WriteHalf};
@@ -7,6 +9,18 @@ pub mod error;
 
 pub const PACKET_HEADER: &str = "#bs";
 pub const PACKET_END: &str = "\n#end\n";
+
+trait PacketBody {
+    fn to_string(&self) -> String;
+}
+struct ConnectBody {
+    nick: String,
+}
+impl PacketBody for ConnectBody {
+    fn to_string(&self) -> String {
+        String::from("test body")
+    }
+}
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ProtocolCommand {
@@ -32,19 +46,29 @@ impl ProtocolCommand {
     }
 }
 
+trait PacketState {}
+struct NotReady;
+impl PacketState for NotReady {}
+struct Ready;
+impl PacketState for Ready {}
+
 #[derive(Debug)]
-pub struct Packet {
+pub struct Packet<S: PacketState, BodyType: PacketBody> {
     command: ProtocolCommand,
-    body: String,
+    body: Option<String>,
+    _phantom_body_type: std::marker::PhantomData<BodyType>,
+    _phantom_s: std::marker::PhantomData<S>,
 }
-impl Packet {
-    pub fn new(cmd: ProtocolCommand, body: &str) -> Option<Packet> {
+impl<S: PacketState, BodyType: PacketBody> Packet<S, BodyType> {
+    pub fn new(cmd: ProtocolCommand) -> Option<Packet<NotReady, BodyType>> {
         if cmd == ProtocolCommand::UnknownCmd {
             None
         } else {
-            Some(Packet {
+            Some(Packet::<NotReady, BodyType> {
                 command: cmd,
-                body: String::from(body),
+                body: None,
+                _phantom_s: std::marker::PhantomData,
+                _phantom_body_type: std::marker::PhantomData,
             })
         }
     }
@@ -54,7 +78,7 @@ impl Packet {
             + " "
             + self.command.get_str().expect("couldn't get command str")
             + "\n"
-            + &self.body
+            + self.body.as_ref().expect("this shouldn't break")
             + PACKET_END;
         let req = req.into_bytes();
         req.into_boxed_slice()
@@ -62,6 +86,16 @@ impl Packet {
 
     pub fn get_cmd(&self) -> &ProtocolCommand {
         &self.command
+    }
+}
+impl<BodyType: PacketBody> Packet<NotReady, BodyType> {
+    pub fn load_body(&mut self, body: BodyType) -> Packet<Ready, BodyType> {
+        Packet {
+            body: Some(body.to_string()),
+            command: self.command,
+            _phantom_s: std::marker::PhantomData,
+            _phantom_body_type: std::marker::PhantomData,
+        }
     }
 }
 
