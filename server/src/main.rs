@@ -1,4 +1,4 @@
-use bslib::tcp_protocol::{Packet, PacketReader, ProtocolCommand};
+use bslib::tcp_protocol::{Packet, PacketReader, ProtocolCommand, Ready};
 use config::{Config, Environment};
 use dotenv::dotenv;
 use error::HandlingError;
@@ -66,7 +66,7 @@ async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
 
 async fn listen_stream(
     mut packet_reader: PacketReader,
-    tx: Sender<Packet>,
+    tx: Sender<Packet<Ready>>,
 ) -> Result<(), HandlingError> {
     while let Some(packet) = packet_reader.read_packet().await? {
         println!("sending packet to handle_connect");
@@ -76,7 +76,7 @@ async fn listen_stream(
 }
 
 async fn decode_handler(
-    packet: Packet,
+    packet: Packet<Ready>,
     write_half: &mut WriteHalf<TcpStream>,
 ) -> Result<(), HandlingError> {
     match packet.get_cmd() {
