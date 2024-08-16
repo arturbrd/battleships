@@ -93,5 +93,43 @@ impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for PacketRea
         }
     }
 }
+impl std::convert::From<PacketError> for PacketReaderError {
+    fn from(value: PacketError) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
 impl std::error::Error for PacketReaderError {}
 impl ProtocolError for PacketReaderError {}
+
+#[derive(Debug)]
+pub struct PacketError {
+    msg: String,
+}
+impl PacketError {
+    pub fn new(msg: String) -> Self {
+        Self { msg }
+    }
+}
+impl Display for PacketError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PacketError: {}", self.msg)
+    }
+}
+impl std::convert::From<io::Error> for PacketError {
+    fn from(value: io::Error) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
+impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for PacketError {
+    fn from(value: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
+impl std::error::Error for PacketError {}
+impl ProtocolError for PacketError {}

@@ -1,4 +1,4 @@
-use crate::tcp_protocol::{Packet, ProtocolCommand, Requester};
+use crate::tcp_protocol::{ConnectBody, Packet, PacketBodyType, ProtocolCommand, Requester};
 use board::{error::PlacingShipsError, OwnBoard, Ship, ShipType};
 use error::ConnectionError;
 use tokio::net::TcpStream;
@@ -14,11 +14,13 @@ pub struct Player<'a> {
 impl<'a> Player<'a> {
     pub fn new(stream: TcpStream) -> Self {
         Self {
-            ships: vec![Ship::new(ShipType::Carrier),
-            Ship::new(ShipType::Battleship),
-            Ship::new(ShipType::Cruiser),
-            Ship::new(ShipType::Submarine),
-            Ship::new(ShipType::Destroyer)],
+            ships: vec![
+                Ship::new(ShipType::Carrier),
+                Ship::new(ShipType::Battleship),
+                Ship::new(ShipType::Cruiser),
+                Ship::new(ShipType::Submarine),
+                Ship::new(ShipType::Destroyer),
+            ],
             own_board: OwnBoard::new(),
             requester: Requester::new(stream),
         }
@@ -30,12 +32,11 @@ impl<'a> Player<'a> {
     }
 
     pub async fn connect(&mut self) -> Result<(), ConnectionError> {
+        let body =
+            PacketBodyType::Connect(Box::new(ConnectBody::new(String::from("connect body"))));
         let _res = self
             .requester
-            .send_request(
-                Packet::new(ProtocolCommand::Connect, "secret")
-                    .expect("creating packet failed unexpectedly"),
-            )
+            .send_request(Packet::new(ProtocolCommand::Connect).load_body(body)?)
             .await?;
         Ok(())
     }

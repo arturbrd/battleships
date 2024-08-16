@@ -3,23 +3,74 @@ use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, ReadHalf};
 use tokio::io::{BufReader, WriteHalf};
 use tokio::net::TcpStream;
 
+use self::error::PacketError;
+
 pub mod error;
 
 pub const PACKET_HEADER: &str = "#bs";
 pub const PACKET_END: &str = "\n#end\n";
 
+trait PacketBody: std::fmt::Debug + std::marker::Send {
+    fn to_string(&self) -> String;
+}
+
+#[derive(Debug)]
+struct TestBody {
+    nick: String,
+}
+impl TestBody {
+    pub fn new(nick: String) -> Self {
+        Self { nick }
+    }
+}
+impl PacketBody for TestBody {
+    fn to_string(&self) -> String {
+        String::from("test body")
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectBody {
+    nick: String,
+}
+impl ConnectBody {
+    pub fn new(nick: String) -> Self {
+        Self { nick }
+    }
+}
+impl PacketBody for ConnectBody {
+    fn to_string(&self) -> String {
+        String::from("test body")
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectRespBody {
+    nick: String,
+}
+impl ConnectRespBody {
+    pub fn new(nick: String) -> Self {
+        Self { nick }
+    }
+}
+impl PacketBody for ConnectRespBody {
+    fn to_string(&self) -> String {
+        String::from("test body")
+    }
+}
+
 #[derive(PartialEq, Eq, Debug)]
 pub enum ProtocolCommand {
-    UnknownCmd,
+    Test,
     Connect,
     ConnectResp,
 }
 impl ProtocolCommand {
     pub fn get_str(&self) -> Option<&str> {
         match self {
-            Self::UnknownCmd => None,
             Self::Connect => Some("connect"),
             Self::ConnectResp => Some("connect_resp"),
+            Self::Test => Some("test"),
         }
     }
 
@@ -33,35 +84,86 @@ impl ProtocolCommand {
 }
 
 #[derive(Debug)]
-pub struct Packet {
-    command: ProtocolCommand,
-    body: String,
+pub enum PacketBodyType {
+    Test(Box<TestBody>),
+    Connect(Box<ConnectBody>),
+    ConnectResp(Box<ConnectRespBody>),
 }
-impl Packet {
-    pub fn new(cmd: ProtocolCommand, body: &str) -> Option<Packet> {
-        if cmd == ProtocolCommand::UnknownCmd {
-            None
-        } else {
-            Some(Packet {
-                command: cmd,
-                body: String::from(body),
-            })
+impl PacketBodyType {
+    pub fn get_cmd(&self) -> ProtocolCommand {
+        match self {
+            Self::Test(_) => ProtocolCommand::Test,
+            Self::Connect(_) => ProtocolCommand::Connect,
+            Self::ConnectResp(_) => ProtocolCommand::ConnectResp,
         }
     }
 
-    pub fn as_bytes(&self) -> Box<[u8]> {
-        let req = PACKET_HEADER.to_string()
-            + " "
-            + self.command.get_str().expect("couldn't get command str")
-            + "\n"
-            + &self.body
-            + PACKET_END;
-        let req = req.into_bytes();
-        req.into_boxed_slice()
+    pub fn as_trait_obj(self) -> Box<dyn PacketBody> {
+        match self {
+            Self::Test(body) => body as Box<dyn PacketBody>,
+            Self::Connect(body) => body as Box<dyn PacketBody>,
+            Self::ConnectResp(body) => body as Box<dyn PacketBody>,
+        }
     }
+}
 
+pub trait BodyState {}
+
+#[derive(Debug)]
+pub struct NotReady;
+impl BodyState for NotReady {}
+
+#[derive(Debug)]
+pub struct Ready;
+impl BodyState for Ready {}
+
+#[derive(Debug)]
+pub struct Packet<S: BodyState> {
+    command: ProtocolCommand,
+    body: Option<Box<dyn PacketBody>>,
+    _phantom: std::marker::PhantomData<S>,
+}
+impl<S: BodyState> Packet<S> {
     pub fn get_cmd(&self) -> &ProtocolCommand {
         &self.command
+    }
+}
+impl Packet<Ready> {
+    pub fn as_bytes(&self) -> Box<[u8]> {
+        if let Some(body) = &self.body {
+            let req = PACKET_HEADER.to_string()
+                + " "
+                + self.command.get_str().expect("couldn't get command str")
+                + "\n"
+                + body.to_string().as_str()
+                + PACKET_END;
+            let req = req.into_bytes();
+            req.into_boxed_slice()
+        } else {
+            panic!("This shouldn't happen for a Packet<Ready, _>");
+        }
+    }
+}
+impl Packet<NotReady> {
+    pub fn load_body(self, body: PacketBodyType) -> Result<Packet<Ready>, PacketError> {
+        let body_type = body.get_cmd();
+        if body_type == self.command {
+            Ok(Packet {
+                command: self.command,
+                body: Some(body.as_trait_obj()),
+                _phantom: std::marker::PhantomData,
+            })
+        } else {
+            Err(PacketError::new(String::from("Wrong body type")))
+        }
+    }
+
+    pub fn new(cmd: ProtocolCommand) -> Packet<NotReady> {
+        Packet::<NotReady> {
+            command: cmd,
+            body: None,
+            _phantom: std::marker::PhantomData,
+        }
     }
 }
 
@@ -81,7 +183,7 @@ impl Requester {
         }
     }
 
-    pub async fn send_request(&mut self, request: Packet) -> Result<Response, RequestError> {
+    pub async fn send_request(&mut self, request: Packet<Ready>) -> Result<Response, RequestError> {
         self.write_half.write_all(&request.as_bytes()).await?;
         self.write_half.flush().await?;
         let response = self.packet_reader.read_packet().await?;
@@ -101,7 +203,7 @@ impl PacketReader {
         Self { reader }
     }
 
-    pub async fn read_packet(&mut self) -> Result<Option<Packet>, PacketReaderError> {
+    pub async fn read_packet(&mut self) -> Result<Option<Packet<Ready>>, PacketReaderError> {
         let mut buf = String::new();
         if self.reader.read_line(&mut buf).await? == 0 {
             return Ok(None);
@@ -118,10 +220,21 @@ impl PacketReader {
 
         let cmd = ProtocolCommand::from_cmd(cmd);
         let packet = match cmd {
-            Some(cmd) => Ok(Some(Packet::new(cmd, &body).expect("it shouldn't panic"))),
-            None => Ok(Some(
-                Packet::new(ProtocolCommand::UnknownCmd, &body).expect("it shouldn't panic"),
-            )),
+            Some(cmd) => Ok(Some(match cmd {
+                ProtocolCommand::Test => {
+                    let body = Box::new(TestBody::new(String::from("test body")));
+                    Packet::new(cmd).load_body(PacketBodyType::Test(body))?
+                }
+                ProtocolCommand::Connect => {
+                    let body = Box::new(ConnectBody::new(String::from("test body")));
+                    Packet::new(cmd).load_body(PacketBodyType::Connect(body))?
+                }
+                ProtocolCommand::ConnectResp => {
+                    let body = Box::new(ConnectRespBody::new(String::from("test body")));
+                    Packet::new(cmd).load_body(PacketBodyType::ConnectResp(body))?
+                }
+            })),
+            None => Err(PacketReaderError::new(String::from("Wrong command name"))),
         };
         buf.clear();
         packet
