@@ -1,4 +1,4 @@
-use crate::tcp_protocol::{ConnectRespBody, Packet, PacketBodyType, ProtocolCommand, Requester};
+use crate::tcp_protocol::{ConnectBody, Packet, PacketBodyType, ProtocolCommand, Requester};
 use board::{error::PlacingShipsError, OwnBoard, Ship, ShipType};
 use error::ConnectionError;
 use tokio::net::TcpStream;
@@ -32,9 +32,8 @@ impl<'a> Player<'a> {
     }
 
     pub async fn connect(&mut self) -> Result<(), ConnectionError> {
-        let body = PacketBodyType::ConnectResp(Box::new(ConnectRespBody::new(String::from(
-            "connect body",
-        ))));
+        let body =
+            PacketBodyType::Connect(Box::new(ConnectBody::new(String::from("connect body"))));
         let _res = self
             .requester
             .send_request(Packet::new(ProtocolCommand::Connect).load_body(body)?)
