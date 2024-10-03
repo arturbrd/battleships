@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
 mod error;
+pub mod game_manager;
 pub mod handlers;
 
 #[derive(Serialize, Deserialize)]
