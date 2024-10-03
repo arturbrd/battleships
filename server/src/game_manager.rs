@@ -1,23 +1,38 @@
-use bslib::game::Game;
+use server_game::ServerGame;
+use server_player::ServerPlayer;
+
+mod server_game;
+pub mod server_player;
 
 pub struct GameManager {
-    games: Vec<Game>,
+    games: Vec<ServerGame>,
 }
 impl GameManager {
-    pub fn new() -> Self {
+    fn new() -> Self {
         GameManager { games: Vec::new() }
     }
 
-    pub fn create_game(&mut self) {
-        self.games.push(Game::new());
+    fn create_game(&mut self, player: &'a ServerPlayer) {
+        self.games.push(ServerGame::new(player));
     }
 
-    pub fn find_empty_slot(&self) -> Option<&Game> {
+    fn find_empty_slot(&self) -> Option<&ServerGame> {
         for game in self.games {
             if game.has_empty_slot() {
                 return Some(&game);
             }
         }
         None
+    }
+
+    pub fn assign_player(&self, player: &ServerPlayer) {
+        match self.find_empty_slot() {
+            Some(game)  => {
+                game.add_opponent(player);
+            },
+            None => {
+                self.create_game(player);
+            }
+        }
     }
 }

@@ -2,6 +2,7 @@ use bslib::tcp_protocol::{Packet, PacketReader, ProtocolCommand, Ready};
 use config::{Config, Environment};
 use dotenv::dotenv;
 use error::HandlingError;
+use game_manager::server_player::ServerPlayer;
 use serde::{Deserialize, Serialize};
 use tokio::io::{self, WriteHalf};
 use tokio::net::{TcpListener, TcpStream};
@@ -52,6 +53,8 @@ async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
 
     let (tx, mut rx) = mpsc::channel(128);
 
+    let player = ServerPlayer::new();
+
     let listener = tokio::spawn(async move {
         let packet_reader = PacketReader::new(io::BufReader::new(read_half));
         listen_stream(packet_reader, tx).await
@@ -59,7 +62,7 @@ async fn handle_connection(stream: TcpStream) -> Result<(), HandlingError> {
 
     while let Some(packet) = rx.recv().await {
         println!("{:#?}", packet);
-        decode_handler(packet, &mut write_half).await?;
+        decode_handler(packet, &mut write_half, &player).await?;
     }
     let _ = listener.await??;
     Ok(())
@@ -79,9 +82,10 @@ async fn listen_stream(
 async fn decode_handler(
     packet: Packet<Ready>,
     write_half: &mut WriteHalf<TcpStream>,
+    player: &ServerPlayer
 ) -> Result<(), HandlingError> {
     match packet.get_cmd() {
-        ProtocolCommand::Connect => handlers::handle_connect_cmd(write_half).await?,
+        ProtocolCommand::Connect => handlers::handle_connect_cmd(write_half, player).await?,
         _ => (),
     }
     println!("handler has finished");

@@ -1,4 +1,4 @@
-use crate::player::board::error::{PlacingShipsError, UserInputError};
+use crate::client_player::client_board::error::{PlacingShipsError, UserInputError};
 use std::{fmt::Display, io::stdin};
 
 pub mod error;
