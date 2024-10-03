@@ -1,4 +1,4 @@
-use crate::tcp_protocol::{ConnectBody, Packet, PacketBodyType, ProtocolCommand, Requester};
+use bslib::tcp_protocol::{ConnectBody, Packet, PacketBodyType, ProtocolCommand, Requester};
 use client_board::{error::PlacingShipsError, OwnBoard, Ship, ShipType};
 use error::ConnectionError;
 use tokio::net::TcpStream;

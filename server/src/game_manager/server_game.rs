@@ -1,8 +1,8 @@
 use super::server_player::ServerPlayer;
 
 pub struct ServerGame<'a> {
-    player1: &'a ServerPlayer<'a>,
-    player2: Option<&'a ServerPlayer<'a>>,
+    player1: &'a ServerPlayer,
+    player2: Option<&'a ServerPlayer>,
 }
 impl<'a> ServerGame<'a> {
     pub fn new(player: &'a ServerPlayer) -> Self {

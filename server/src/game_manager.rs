@@ -4,29 +4,30 @@ use server_player::ServerPlayer;
 mod server_game;
 pub mod server_player;
 
-pub struct GameManager {
-    games: Vec<ServerGame>,
+pub struct GameManager<'a> {
+    games: Vec<ServerGame<'a>>,
 }
-impl GameManager {
+impl<'a> GameManager<'a> {
     fn new() -> Self {
-        GameManager { games: Vec::new() }
+        Self { games: Vec::new() }
     }
 
     fn create_game(&mut self, player: &'a ServerPlayer) {
         self.games.push(ServerGame::new(player));
     }
 
-    fn find_empty_slot(&self) -> Option<&ServerGame> {
-        for game in self.games {
+    fn find_empty_slot(&mut self) -> Option<&'a mut ServerGame> {
+        for game in &mut self.games {
             if game.has_empty_slot() {
-                return Some(&game);
+                return Some(game);
             }
         }
         None
     }
 
-    pub fn assign_player(&self, player: &ServerPlayer) {
-        match self.find_empty_slot() {
+    pub fn assign_player(&'a mut self, player: &'a ServerPlayer) {
+        let game_slot = self.find_empty_slot();
+        match game_slot {
             Some(game)  => {
                 game.add_opponent(player);
             },
