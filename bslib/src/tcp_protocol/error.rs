@@ -108,8 +108,8 @@ pub struct PacketError {
     msg: String,
 }
 impl PacketError {
-    pub fn new(msg: String) -> Self {
-        Self { msg }
+    pub fn new(msg: &str) -> Self {
+        Self { msg: String::from(msg) }
     }
 }
 impl Display for PacketError {

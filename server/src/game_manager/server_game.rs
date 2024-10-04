@@ -1,11 +1,14 @@
+use std::sync::{Arc, Mutex};
+
 use super::server_player::ServerPlayer;
 
-pub struct ServerGame<'a> {
-    player1: &'a ServerPlayer,
-    player2: Option<&'a ServerPlayer>,
+#[derive(Debug)]
+pub struct ServerGame {
+    player1: Arc<Mutex<ServerPlayer>>,
+    player2: Option<Arc<Mutex<ServerPlayer>>>,
 }
-impl<'a> ServerGame<'a> {
-    pub fn new(player: &'a ServerPlayer) -> Self {
+impl ServerGame {
+    pub fn new(player: Arc<Mutex<ServerPlayer>>) -> Self {
         ServerGame {
             player1: player,
             player2: None,
@@ -16,7 +19,7 @@ impl<'a> ServerGame<'a> {
         self.player2.is_none()
     }
 
-    pub fn add_opponent(&mut self, player: &'a ServerPlayer) {
+    pub fn add_opponent(&mut self, player: Arc<Mutex<ServerPlayer>>) {
         self.player2 = Some(player);
     }
 }

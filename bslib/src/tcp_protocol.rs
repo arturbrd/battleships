@@ -10,12 +10,13 @@ pub mod error;
 pub const PACKET_HEADER: &str = "#bs";
 pub const PACKET_END: &str = "\n#end\n";
 
-trait PacketBody: std::fmt::Debug + std::marker::Send {
+pub trait PacketBody: std::fmt::Debug + std::marker::Send {
     fn to_string(&self) -> String;
+    fn get_nick(&self) -> Result<&str, PacketError>;
 }
 
 #[derive(Debug)]
-struct TestBody {
+pub struct TestBody {
     nick: String,
 }
 impl TestBody {
@@ -25,7 +26,10 @@ impl TestBody {
 }
 impl PacketBody for TestBody {
     fn to_string(&self) -> String {
-        String::from("test body")
+        self.nick.clone()
+    }
+    fn get_nick(&self) -> Result<&str, PacketError> {
+        Ok(&self.nick)
     }
 }
 
@@ -40,7 +44,10 @@ impl ConnectBody {
 }
 impl PacketBody for ConnectBody {
     fn to_string(&self) -> String {
-        String::from("test body")
+        self.nick.clone()
+    }
+    fn get_nick(&self) -> Result<&str, PacketError> {
+        Ok(&self.nick)
     }
 }
 
@@ -55,7 +62,10 @@ impl ConnectRespBody {
 }
 impl PacketBody for ConnectRespBody {
     fn to_string(&self) -> String {
-        String::from("test body")
+        self.nick.clone()
+    }
+    fn get_nick(&self) -> Result<&str, PacketError> {
+        Ok(&self.nick)
     }
 }
 
@@ -143,6 +153,13 @@ impl Packet<Ready> {
             panic!("This shouldn't happen for a Packet<Ready, _>");
         }
     }
+
+    pub fn get_body(&self) -> Result<&dyn PacketBody, PacketError> {
+        match &self.body {
+            Some(body) => Ok(body.as_ref()),
+            None => Err(PacketError::new("There is no body"))
+        }
+    }
 }
 impl Packet<NotReady> {
     pub fn load_body(self, body: PacketBodyType) -> Result<Packet<Ready>, PacketError> {
@@ -154,7 +171,7 @@ impl Packet<NotReady> {
                 _phantom: std::marker::PhantomData,
             })
         } else {
-            Err(PacketError::new(String::from("Wrong body type")))
+            Err(PacketError::new("Wrong body type"))
         }
     }
 
@@ -184,6 +201,8 @@ impl Requester {
     }
 
     pub async fn send_request(&mut self, request: Packet<Ready>) -> Result<Response, RequestError> {
+        println!("{:#?}", request);
+        pause();
         self.write_half.write_all(&request.as_bytes()).await?;
         self.write_half.flush().await?;
         let response = self.packet_reader.read_packet().await?;
@@ -193,6 +212,16 @@ impl Requester {
             None => Err(RequestError::new(String::from("Response not received"))),
         }
     }
+}
+
+fn pause() {
+    dbg!("Pausing! Press enter to continue...");
+
+    let mut buffer = String::new();
+
+    std::io::stdin()
+        .read_line(&mut buffer)
+        .expect("Failed to read line");
 }
 
 pub struct PacketReader {
@@ -213,7 +242,7 @@ impl PacketReader {
             .split_once(' ')
             .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
 
-        let body = self.read_body().await?;
+        let raw_body = self.read_body().await?;
         if header != PACKET_HEADER {
             return Err(PacketReaderError::new(String::from("Wrong packet header")));
         }
@@ -222,15 +251,15 @@ impl PacketReader {
         let packet = match cmd {
             Some(cmd) => Ok(Some(match cmd {
                 ProtocolCommand::Test => {
-                    let body = Box::new(TestBody::new(String::from("test body")));
+                    let body = Box::new(TestBody::new(raw_body));
                     Packet::new(cmd).load_body(PacketBodyType::Test(body))?
                 }
                 ProtocolCommand::Connect => {
-                    let body = Box::new(ConnectBody::new(String::from("test body")));
+                    let body = Box::new(ConnectBody::new(raw_body));
                     Packet::new(cmd).load_body(PacketBodyType::Connect(body))?
                 }
                 ProtocolCommand::ConnectResp => {
-                    let body = Box::new(ConnectRespBody::new(String::from("test body")));
+                    let body = Box::new(ConnectRespBody::new(raw_body));
                     Packet::new(cmd).load_body(PacketBodyType::ConnectResp(body))?
                 }
             })),

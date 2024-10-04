@@ -1,6 +1,5 @@
 use bslib::tcp_protocol::error::ProtocolError;
 use core::fmt::Display;
-use tokio::io;
 
 #[derive(Debug, Clone)]
 pub struct ConnectionError {

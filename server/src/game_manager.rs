@@ -1,39 +1,33 @@
+use std::sync::{Arc, Mutex};
+
 use server_game::ServerGame;
 use server_player::ServerPlayer;
 
 mod server_game;
 pub mod server_player;
 
-pub struct GameManager<'a> {
-    games: Vec<ServerGame<'a>>,
+#[derive(Debug)]
+pub struct GameManager {
+    games: Vec<ServerGame>,
 }
-impl<'a> GameManager<'a> {
-    fn new() -> Self {
+impl GameManager {
+    pub fn new() -> Self {
         Self { games: Vec::new() }
     }
 
-    fn create_game(&mut self, player: &'a ServerPlayer) {
+    fn create_game(&mut self, player: Arc<Mutex<ServerPlayer>>) {
         self.games.push(ServerGame::new(player));
     }
 
-    fn find_empty_slot(&mut self) -> Option<&'a mut ServerGame> {
+    pub fn assign_player(&mut self, player: Arc<Mutex<ServerPlayer>>) {
         for game in &mut self.games {
             if game.has_empty_slot() {
-                return Some(game);
-            }
-        }
-        None
-    }
-
-    pub fn assign_player(&'a mut self, player: &'a ServerPlayer) {
-        let game_slot = self.find_empty_slot();
-        match game_slot {
-            Some(game)  => {
                 game.add_opponent(player);
-            },
-            None => {
-                self.create_game(player);
+                println!("assigned a player to a game, game_manager be like: {:#?}", self);
+                return;
             }
         }
+        self.create_game(player);
+        println!("assigned a player to a game, game_manager be like: {:#?}", self);
     }
 }

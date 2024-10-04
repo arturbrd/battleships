@@ -31,9 +31,9 @@ impl<'a> ClientPlayer<'a> {
         Ok(())
     }
 
-    pub async fn connect(&mut self) -> Result<(), ConnectionError> {
+    pub async fn connect(&mut self, nick: String) -> Result<(), ConnectionError> {
         let body =
-            PacketBodyType::Connect(Box::new(ConnectBody::new(String::from("connect body"))));
+            PacketBodyType::Connect(Box::new(ConnectBody::new(nick)));
         let _res = self
             .requester
             .send_request(Packet::new(ProtocolCommand::Connect).load_body(body)?)
