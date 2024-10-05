@@ -38,6 +38,13 @@ impl std::convert::From<PacketReaderError> for RequestError {
         }
     }
 }
+impl std::convert::From<serde_json::Error> for RequestError {
+    fn from(value: serde_json::Error) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
 impl std::error::Error for RequestError {}
 impl ProtocolError for RequestError {}
 
@@ -95,6 +102,13 @@ impl<T> std::convert::From<tokio::sync::mpsc::error::SendError<T>> for PacketRea
 }
 impl std::convert::From<PacketError> for PacketReaderError {
     fn from(value: PacketError) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
+impl std::convert::From<serde_json::Error> for PacketReaderError {
+    fn from(value: serde_json::Error) -> Self {
         Self {
             msg: format!("{value:}"),
         }

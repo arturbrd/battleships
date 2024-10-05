@@ -72,6 +72,7 @@ name = "bslib"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "tokio",
 ]
 
@@ -526,6 +527,7 @@ dependencies = [
  "config",
  "dotenv",
  "serde",
+ "serde_json",
  "tokio",
 ]
 
