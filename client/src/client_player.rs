@@ -1,17 +1,17 @@
-use crate::tcp_protocol::{ConnectBody, Packet, PacketBodyType, ProtocolCommand, Requester};
-use board::{error::PlacingShipsError, OwnBoard, Ship, ShipType};
+use bslib::tcp_protocol::{ConnectBody, Packet, PacketBody, ProtocolCommand, Requester};
+use client_board::{error::PlacingShipsError, OwnBoard, Ship, ShipType};
 use error::ConnectionError;
 use tokio::net::TcpStream;
 
-mod board;
+mod client_board;
 mod error;
 
-pub struct Player<'a> {
+pub struct ClientPlayer<'a> {
     ships: Vec<Ship>,
     own_board: OwnBoard<'a>,
     requester: Requester,
 }
-impl<'a> Player<'a> {
+impl<'a> ClientPlayer<'a> {
     pub fn new(stream: TcpStream) -> Self {
         Self {
             ships: vec![
@@ -31,9 +31,9 @@ impl<'a> Player<'a> {
         Ok(())
     }
 
-    pub async fn connect(&mut self) -> Result<(), ConnectionError> {
+    pub async fn connect(&mut self, nick: String) -> Result<(), ConnectionError> {
         let body =
-            PacketBodyType::Connect(Box::new(ConnectBody::new(String::from("connect body"))));
+            PacketBody::Connect(Box::new(ConnectBody::new(nick)));
         let _res = self
             .requester
             .send_request(Packet::new(ProtocolCommand::Connect).load_body(body)?)

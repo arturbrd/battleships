@@ -1,4 +1,3 @@
-pub mod player;
 pub mod tcp_protocol;
 
 // use player::Player;

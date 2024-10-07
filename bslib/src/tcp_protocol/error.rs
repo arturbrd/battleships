@@ -38,6 +38,13 @@ impl std::convert::From<PacketReaderError> for RequestError {
         }
     }
 }
+impl std::convert::From<serde_json::Error> for RequestError {
+    fn from(value: serde_json::Error) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
 impl std::error::Error for RequestError {}
 impl ProtocolError for RequestError {}
 
@@ -100,6 +107,13 @@ impl std::convert::From<PacketError> for PacketReaderError {
         }
     }
 }
+impl std::convert::From<serde_json::Error> for PacketReaderError {
+    fn from(value: serde_json::Error) -> Self {
+        Self {
+            msg: format!("{value:}"),
+        }
+    }
+}
 impl std::error::Error for PacketReaderError {}
 impl ProtocolError for PacketReaderError {}
 
@@ -108,8 +122,8 @@ pub struct PacketError {
     msg: String,
 }
 impl PacketError {
-    pub fn new(msg: String) -> Self {
-        Self { msg }
+    pub fn new(msg: &str) -> Self {
+        Self { msg: String::from(msg) }
     }
 }
 impl Display for PacketError {

@@ -1,6 +1,5 @@
-use crate::tcp_protocol::error::ProtocolError;
+use bslib::tcp_protocol::error::ProtocolError;
 use core::fmt::Display;
-use tokio::io;
 
 #[derive(Debug, Clone)]
 pub struct ConnectionError {
@@ -11,13 +10,13 @@ impl Display for ConnectionError {
         write!(f, "ConnectionError: {}", self.msg)
     }
 }
-impl From<io::Error> for ConnectionError {
-    fn from(value: io::Error) -> Self {
-        Self {
-            msg: format!("{value:}"),
-        }
-    }
-}
+// impl From<io::Error> for ConnectionError {
+//     fn from(value: io::Error) -> Self {
+//         Self {
+//             msg: format!("{value:}"),
+//         }
+//     }
+// }
 impl<T: ProtocolError> From<T> for ConnectionError {
     fn from(value: T) -> Self {
         Self {

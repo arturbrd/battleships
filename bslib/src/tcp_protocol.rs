@@ -1,4 +1,5 @@
 use error::{PacketReaderError, RequestError};
+use serde::{Deserialize, Serialize};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, ReadHalf};
 use tokio::io::{BufReader, WriteHalf};
 use tokio::net::TcpStream;
@@ -10,26 +11,22 @@ pub mod error;
 pub const PACKET_HEADER: &str = "#bs";
 pub const PACKET_END: &str = "\n#end\n";
 
-trait PacketBody: std::fmt::Debug + std::marker::Send {
-    fn to_string(&self) -> String;
-}
-
-#[derive(Debug)]
-struct TestBody {
-    nick: String,
-}
-impl TestBody {
-    pub fn new(nick: String) -> Self {
-        Self { nick }
+pub trait Jsonable: Serialize + for <'a> Deserialize<'a> {
+    fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str::<Self>(json)
     }
-}
-impl PacketBody for TestBody {
-    fn to_string(&self) -> String {
-        String::from("test body")
+
+    fn to_string(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub struct TestBody {
+}
+impl Jsonable for TestBody {}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectBody {
     nick: String,
 }
@@ -37,27 +34,23 @@ impl ConnectBody {
     pub fn new(nick: String) -> Self {
         Self { nick }
     }
-}
-impl PacketBody for ConnectBody {
-    fn to_string(&self) -> String {
-        String::from("test body")
+
+    fn get_nick(&self) -> &str {
+        &self.nick
     }
 }
+impl Jsonable for ConnectBody {}
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectRespBody {
-    nick: String,
+    opponent: bool
 }
 impl ConnectRespBody {
-    pub fn new(nick: String) -> Self {
-        Self { nick }
+    pub fn new(opponent: bool) -> Self {
+        Self { opponent }
     }
 }
-impl PacketBody for ConnectRespBody {
-    fn to_string(&self) -> String {
-        String::from("test body")
-    }
-}
+impl Jsonable for ConnectRespBody {}
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ProtocolCommand {
@@ -84,12 +77,12 @@ impl ProtocolCommand {
 }
 
 #[derive(Debug)]
-pub enum PacketBodyType {
+pub enum PacketBody {
     Test(Box<TestBody>),
     Connect(Box<ConnectBody>),
     ConnectResp(Box<ConnectRespBody>),
 }
-impl PacketBodyType {
+impl PacketBody {
     pub fn get_cmd(&self) -> ProtocolCommand {
         match self {
             Self::Test(_) => ProtocolCommand::Test,
@@ -98,11 +91,19 @@ impl PacketBodyType {
         }
     }
 
-    pub fn as_trait_obj(self) -> Box<dyn PacketBody> {
+   pub fn to_string(&self) -> Result<String, serde_json::Error> {
         match self {
-            Self::Test(body) => body as Box<dyn PacketBody>,
-            Self::Connect(body) => body as Box<dyn PacketBody>,
-            Self::ConnectResp(body) => body as Box<dyn PacketBody>,
+            Self::Test(body) => body.to_string(),
+            Self::Connect(body) => body.to_string(),
+            Self::ConnectResp(body) => body.to_string(),
+        }
+    }
+
+    pub fn get_nick(&self) -> Result<&str, PacketError> {
+        match self {
+            Self::Test(_) => Err(PacketError::new("No such field on this type of body")),
+            Self::Connect(body) => Ok(body.get_nick()),
+            Self::ConnectResp(_) => Err(PacketError::new("No such field on this type of body"))
         }
     }
 }
@@ -120,7 +121,7 @@ impl BodyState for Ready {}
 #[derive(Debug)]
 pub struct Packet<S: BodyState> {
     command: ProtocolCommand,
-    body: Option<Box<dyn PacketBody>>,
+    body: Option<PacketBody>,
     _phantom: std::marker::PhantomData<S>,
 }
 impl<S: BodyState> Packet<S> {
@@ -129,32 +130,40 @@ impl<S: BodyState> Packet<S> {
     }
 }
 impl Packet<Ready> {
-    pub fn as_bytes(&self) -> Box<[u8]> {
+    pub fn as_bytes(&self) -> Result<Box<[u8]>, serde_json::Error> {
         if let Some(body) = &self.body {
             let req = PACKET_HEADER.to_string()
                 + " "
                 + self.command.get_str().expect("couldn't get command str")
                 + "\n"
-                + body.to_string().as_str()
+                + body.to_string()?.as_str()
                 + PACKET_END;
+                println!("packet as string: {:#?}", req);
             let req = req.into_bytes();
-            req.into_boxed_slice()
+            Ok(req.into_boxed_slice())
         } else {
             panic!("This shouldn't happen for a Packet<Ready, _>");
         }
     }
+
+    pub fn get_body(&self) -> Result<&PacketBody, PacketError> {
+        match &self.body {
+            Some(body) => Ok(body),
+            None => Err(PacketError::new("There is no body"))
+        }
+    }
 }
 impl Packet<NotReady> {
-    pub fn load_body(self, body: PacketBodyType) -> Result<Packet<Ready>, PacketError> {
+    pub fn load_body(self, body: PacketBody) -> Result<Packet<Ready>, PacketError> {
         let body_type = body.get_cmd();
         if body_type == self.command {
             Ok(Packet {
                 command: self.command,
-                body: Some(body.as_trait_obj()),
+                body: Some(body),
                 _phantom: std::marker::PhantomData,
             })
         } else {
-            Err(PacketError::new(String::from("Wrong body type")))
+            Err(PacketError::new("Wrong body type"))
         }
     }
 
@@ -184,7 +193,9 @@ impl Requester {
     }
 
     pub async fn send_request(&mut self, request: Packet<Ready>) -> Result<Response, RequestError> {
-        self.write_half.write_all(&request.as_bytes()).await?;
+        println!("request: {:#?}", request);
+        self.write_half.write_all(&request.as_bytes()?).await?;
+        pause();
         self.write_half.flush().await?;
         let response = self.packet_reader.read_packet().await?;
         println!("{:#?}", response);
@@ -193,6 +204,16 @@ impl Requester {
             None => Err(RequestError::new(String::from("Response not received"))),
         }
     }
+}
+
+fn pause() {
+    dbg!("Pausing! Press enter to continue...");
+
+    let mut buffer = String::new();
+
+    std::io::stdin()
+        .read_line(&mut buffer)
+        .expect("Failed to read line");
 }
 
 pub struct PacketReader {
@@ -213,7 +234,8 @@ impl PacketReader {
             .split_once(' ')
             .unwrap_or_else(|| panic!("failed to split a request: {:}", buf));
 
-        let body = self.read_body().await?;
+        let raw_body = self.read_body().await?;
+        println!("raw_body: {:#?}", raw_body);
         if header != PACKET_HEADER {
             return Err(PacketReaderError::new(String::from("Wrong packet header")));
         }
@@ -222,21 +244,22 @@ impl PacketReader {
         let packet = match cmd {
             Some(cmd) => Ok(Some(match cmd {
                 ProtocolCommand::Test => {
-                    let body = Box::new(TestBody::new(String::from("test body")));
-                    Packet::new(cmd).load_body(PacketBodyType::Test(body))?
+                    let body = Box::new(TestBody::from_json(&raw_body)?);
+                    Packet::new(cmd).load_body(PacketBody::Test(body))?
                 }
                 ProtocolCommand::Connect => {
-                    let body = Box::new(ConnectBody::new(String::from("test body")));
-                    Packet::new(cmd).load_body(PacketBodyType::Connect(body))?
+                    let body = Box::new(ConnectBody::from_json(&raw_body)?);
+                    Packet::new(cmd).load_body(PacketBody::Connect(body))?
                 }
                 ProtocolCommand::ConnectResp => {
-                    let body = Box::new(ConnectRespBody::new(String::from("test body")));
-                    Packet::new(cmd).load_body(PacketBodyType::ConnectResp(body))?
+                    let body = Box::new(ConnectRespBody::from_json(&raw_body)?);
+                    Packet::new(cmd).load_body(PacketBody::ConnectResp(body))?
                 }
             })),
             None => Err(PacketReaderError::new(String::from("Wrong command name"))),
         };
         buf.clear();
+        println!("packet: {:#?}", packet);
         packet
     }
 
