@@ -11,20 +11,8 @@ pub mod error;
 pub const PACKET_HEADER: &str = "#bs";
 pub const PACKET_END: &str = "\n#end\n";
 
-// pub trait PacketBody: std::fmt::Debug + std::marker::Send {
-//     fn to_string(&self) -> String;
-//     fn get_nick(&self) -> Result<&str, PacketError>;
-// }
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct TestBody {
-}
-impl TestBody {
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn from_json(json: &str) -> Result<TestBody, serde_json::Error> {
+pub trait Jsonable: Serialize + for <'a> Deserialize<'a> {
+    fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str::<Self>(json)
     }
 
@@ -32,6 +20,11 @@ impl TestBody {
         serde_json::to_string(self)
     }
 }
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub struct TestBody {
+}
+impl Jsonable for TestBody {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectBody {
@@ -42,29 +35,22 @@ impl ConnectBody {
         Self { nick }
     }
 
-    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str::<Self>(json)
-    }
-    fn to_string(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
-    }
     fn get_nick(&self) -> &str {
         &self.nick
     }
 }
+impl Jsonable for ConnectBody {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectRespBody {
+    opponent: bool
 }
 impl ConnectRespBody {
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    fn to_string(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
+    pub fn new(opponent: bool) -> Self {
+        Self { opponent }
     }
 }
+impl Jsonable for ConnectRespBody {}
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ProtocolCommand {
@@ -266,7 +252,7 @@ impl PacketReader {
                     Packet::new(cmd).load_body(PacketBody::Connect(body))?
                 }
                 ProtocolCommand::ConnectResp => {
-                    let body = Box::new(ConnectRespBody::new());
+                    let body = Box::new(ConnectRespBody::from_json(&raw_body)?);
                     Packet::new(cmd).load_body(PacketBody::ConnectResp(body))?
                 }
             })),

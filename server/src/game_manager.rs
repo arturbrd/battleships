@@ -6,15 +6,11 @@ use server_player::ServerPlayer;
 mod server_game;
 pub mod server_player;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GameManager {
     games: Vec<ServerGame>,
 }
 impl GameManager {
-    pub fn new() -> Self {
-        Self { games: Vec::new() }
-    }
-
     fn create_game(&mut self, player: Arc<Mutex<ServerPlayer>>) {
         self.games.push(ServerGame::new(player));
     }

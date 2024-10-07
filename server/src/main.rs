@@ -35,7 +35,7 @@ async fn main() {
         .expect("failed to create a listener");
 
 
-    let game_manager = Arc::new(Mutex::new(GameManager::new()));
+    let game_manager = Arc::new(Mutex::new(GameManager::default()));
 
     loop {
         let (stream, _) = listener
@@ -59,7 +59,7 @@ async fn handle_connection(stream: TcpStream, game_manager: Arc<Mutex<GameManage
 
     let (tx, mut rx) = mpsc::channel(128);
 
-    let player = Arc::new(Mutex::new(ServerPlayer::new()));
+    let player = Arc::new(Mutex::new(ServerPlayer::default()));
 
     let listener = tokio::spawn(async move {
         let packet_reader = PacketReader::new(io::BufReader::new(read_half));
@@ -104,7 +104,7 @@ async fn decode_handler<'a: 'b, 'b: 'c, 'c>(
             handlers::handle_connect_cmd(write_half, player, game_manager).await?
         },
         ProtocolCommand::Test => (),
-        _ => (),
+        ProtocolCommand::ConnectResp => return Err(HandlingError::new("Invalid request command - a response command has been provided"))
     }
     println!("handler has finished");
     Ok(())
