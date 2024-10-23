@@ -43,11 +43,12 @@ impl Jsonable for ConnectBody {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectRespBody {
-    opponent: bool
+    opponent: bool,
+    game_id: u32
 }
 impl ConnectRespBody {
-    pub fn new(opponent: bool) -> Self {
-        Self { opponent }
+    pub fn new(opponent: bool, game_id: u32) -> Self {
+        Self { opponent, game_id }
     }
 }
 impl Jsonable for ConnectRespBody {}

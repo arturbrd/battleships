@@ -15,6 +15,7 @@ use tokio::sync::mpsc::Sender;
 mod error;
 pub mod game_manager;
 pub mod handlers;
+pub mod board;
 
 #[derive(Serialize, Deserialize)]
 pub struct ServerConfig {

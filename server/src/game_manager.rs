@@ -15,15 +15,16 @@ impl GameManager {
         self.games.push(ServerGame::new(player));
     }
 
-    pub fn assign_player(&mut self, player: Arc<Mutex<ServerPlayer>>) {
+    pub fn assign_player(&mut self, player: Arc<Mutex<ServerPlayer>>) -> (bool, u32) {
         for game in &mut self.games {
             if game.has_empty_slot() {
                 game.add_opponent(player);
                 println!("assigned a player to a game, game_manager be like: {:#?}", self);
-                return;
+                return (true, 0);
             }
         }
         self.create_game(player);
         println!("assigned a player to a game, game_manager be like: {:#?}", self);
+        (false, 0)
     }
 }
